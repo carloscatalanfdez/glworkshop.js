@@ -2,15 +2,15 @@ var gl;
 
 var WebGl = {
   game: null,
-  input: null,
+  input: new Input(),
   canvas: null,
   init: function() {
     try {
       gl = canvas.getContext("experimental-webgl");
-      if (this.game.width)
-        canvas.width = this.game.width;
-      if (this.game.height)
-        canvas.height = this.game.height;
+      if (WebGl.game.width)
+        canvas.width = WebGl.game.width;
+      if (WebGl.game.height)
+        canvas.height = WebGl.game.height;
       gl.viewportWidth = canvas.width;
       gl.viewportHeight = canvas.height;
     } catch (e) {
@@ -18,8 +18,70 @@ var WebGl = {
     if (!gl) {
       alert("Could not initialise WebGL");
     }
+
+    var self = WebGl;
+    document.onkeydown = function(event) { 
+      self.input.onKeyPressed(event.keyCode);
+    };
+    document.onkeyup = function(event) {
+      self.input.onKeyReleased(event.keyCode);
+    };
+  },
+
+  run: function() {
+    setInterval(WebGl.step, 1000/30);
+  },
+
+  step: function() {
+    WebGl.game.update();
+    WebGl.game.render();
+  }
+}
+
+function Input() {
+  this.keyStates = [];
+  this.prevKeyStates = [];
+  this.currKeyStates = [];
+
+  this.onKeyPressed = function(keyCode) {
+    this.keyStates[keyCode] = true;
+    dirtyKeys[nDirtyKeys++] = keyCode;
+  };
+  this.onKeyReleased = function(keyCode) {
+    this.keyStates[keyCode] = false;
+    dirtyKeys[nDirtyKeys++] = keyCode;
+  };
+
+  this.update = function() {
+    var nextNumDirtyKeys = 0;
+    for (var i = 0; i < nDirtyKeys; i++) {
+      var idx = dirtyKeys[i];
+      this.prevKeyStates[idx] = this.currKeyStates[idx];
+      this.currKeyStates[idx] = this.keyStates[idx];
+      
+      // If value has changed, consider them as dirty for next step
+      if (this.currKeyStates[idx] ^ this.prevKeyStates[idx]) {
+          dirtyKeys[nextNumDirtyKeys++] = idx;
+      }
+    }
+    nDirtyKeys = nextNumDirtyKeys;
   }
 
+  this.keyCheck = function(keyCode) {
+    return this.currKeyStates[keyCode];
+  }
+
+  this.keyPressed = function(keyCode) {
+    return this.currKeyStates[keyCode] && !this.prevKeyStates[keyCode];
+  }
+
+  this.keyReleased = function(keyCode) {
+    return !this.currKeyStates[keyCode] && this.prevKeyStates[keyCode];
+  }
+
+  // Private data
+  var dirtyKeys = [];
+  var nDirtyKeys = 0;
 }
 
 function GameState() {
@@ -60,6 +122,18 @@ function GameState() {
   }
 
   this.update = function() {
+    if (this.game.input.keyCheck(87)) {  // w
+      y += 0.1;
+    }
+    if (this.game.input.keyCheck(65)) {  // a
+      x -= 0.1;
+    }
+    if (this.game.input.keyCheck(83)) {  // s
+      y -= 0.1;
+    }
+    if (this.game.input.keyCheck(68)) {  // d
+      x += 0.1;
+    }    
   }
 
   this.render = function() {
@@ -72,8 +146,8 @@ function GameState() {
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
 
     mat4.identity(mvMatrix);
-
-    mat4.translate(mvMatrix, [-1.5, 0.0, -7.0]);
+    
+    mat4.translate(mvMatrix, [-1.5 + x, 0.0 + y, -7.0]);
     gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
     setMatrixUniforms();
@@ -97,12 +171,16 @@ function GameState() {
       gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
       gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
   }
+
+  var x = 0;
+  var y = 0;
 }
 
 function Game() {
   this.width;
   this.height;
   this.world;
+  this.input;
 
   this.initSettings = function() {
     this.width = 640;
@@ -114,12 +192,25 @@ function Game() {
     WebGl.game = this;
     WebGl.canvas = this;
     WebGl.init();
+    this.input = WebGl.input;
 
     this.changeWorld(new GameState());
   }
 
   this.update = function() {
+    this.input.update();
     this.world.update();
+
+
+    if (this.input.keyPressed(83)) {
+      console.log("pressed");
+    }
+    if (this.input.keyReleased(83)) {
+      console.log("released");
+    }
+    if (this.input.keyCheck(83)) {
+      console.log("down");
+    }
   }
 
   this.render = function() {
@@ -130,6 +221,10 @@ function Game() {
     world.game = this;
     world.init();
     this.world = world;
+  }
+
+  this.run = function() {
+    WebGl.run();
   }
 }
 
@@ -211,8 +306,5 @@ function main() {
     // TODO: Game inheritance
     var game = new Game();
     game.init(canvas);
-
-    // TODO: runloop
-    game.update();
-    game.render();
+    game.run();
 }
