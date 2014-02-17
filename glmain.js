@@ -427,9 +427,6 @@ function Level() {
     shaderProgram = shader.program;
     shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
     shaderProgram.normalPositionAttribute = gl.getAttribLocation(shaderProgram, "aNormalPosition");
-    console.log(shaderProgram);
-    console.log(shaderProgram.vertexPositionAttribute);
-    console.log(shaderProgram.normalPositionAttribute);
     gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
     gl.enableVertexAttribArray(shaderProgram.normalPositionAttribute);
     shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
