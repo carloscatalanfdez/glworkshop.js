@@ -1,7 +1,15 @@
-var gl;
+/*******************************************************
+ *******************************************************
+ * Utils
+ *******************************************************
+ ******************************************************/
 
 /**
  * Inheritance
+ * This model is based on Douglas Crockford's power constructor
+ * With this, function are not constructors anymore, and so the new
+ * operator is not needed. We will still use it in our code in case
+ * the inheritance model is changed.
  */
 function object(o) {
   function F() { };
@@ -11,10 +19,37 @@ function object(o) {
     n.super = o;
     return n;
   } else {
-    return new F();  
+    return new F();
   }
 }
 
+function loadFile(path) {
+    var xhr = new XMLHttpRequest;
+    xhr.open("get", path, false /* synchronous */);
+    xhr.send(null);
+    if (xhr.readyState == 4) {
+      return text = xhr.responseText;
+    }
+
+    return null;
+}
+
+function generateArrayWithDefaultObject(length, Object) {
+  var array = new Array(length);
+  for (var i = 0; i < length; i++) {
+    array[i] = new Object();
+  }
+
+  return array;
+}
+
+/*******************************************************
+ *******************************************************
+ * Webgl base
+ *******************************************************
+ ******************************************************/
+
+var gl;
 var WebGl = {
   game: null,
   input: new Input(),
@@ -51,6 +86,53 @@ var WebGl = {
     WebGl.game.update();
     WebGl.game.render();
   }
+}
+
+function Shader() {
+  var self = object();
+
+  self.program;
+  self.init = function(vertPathName, fragPathName) {
+    var shadersData = {
+      vertex: { 
+        type:gl.VERTEX_SHADER,
+        dataPath:vertPathName,
+        compiledShader:null
+      },
+      fragment: { 
+        type:gl.FRAGMENT_SHADER,
+        dataPath:fragPathName,
+        compiledShader:null
+      }
+    };
+    for (var type in shadersData) {
+      var shaderData = shadersData[type];
+      var shader = gl.createShader(shaderData.type);
+      var shaderText = loadFile(shaderData.dataPath);
+      gl.shaderSource(shader, shaderText);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+          throw gl.getShaderInfoLog(shader);
+
+      shaderData.compiledShader = shader;
+    }
+
+    var shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, shadersData.vertex.compiledShader);
+    gl.attachShader(shaderProgram, shadersData.fragment.compiledShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert("Could not initialise shaders");
+    }
+    self.program = shaderProgram;
+  }
+
+  self.bind = function() {
+    gl.useProgram(self.program);
+  }
+
+  return self;
 }
 
 function Input() {
@@ -102,6 +184,162 @@ function Input() {
 
   return self;
 }
+
+/*******************************************************
+ *******************************************************
+ * Geometry
+ *******************************************************
+ ******************************************************/
+
+function Vector4(x, y, z, w) {
+  var self = object();
+
+  self.x = x || 0;
+  self.y = y || 0;
+  self.z = z || 0;
+  self.w = w || 0;
+  
+  self.get = function(idx) {
+    switch(idx) {
+      case 0: return self.x;
+      case 1: return self.y;
+      case 2: return self.z;
+      case 3: return self.w;
+      default: return 0;
+    }
+  }
+
+  self.set = function(idx, value) {
+    switch(idx) {
+      case 0: self.x = value;
+      case 1: self.y = value;
+      case 2: self.z = value;
+      case 3: self.w = value;
+    }
+  }
+
+  return self;
+}
+
+function Face() {
+  var self = object();
+
+  self.vertexNormalPairs;
+
+  self.init = function(nvertex) {
+    self.vertexNormalPairs = generateArrayWithDefaultObject(
+      nvertex, 
+      function() {
+        var self = object();
+        self.vertex;
+        self.normal;
+        return self;
+      });
+  }
+
+  self.nextVertex = function(idx) {
+    return (idx + 1) % self.vertexNormalPairs.length;
+  }
+
+  self.computeNormal = function(vertexPool) {
+    
+    var out = new Vector4(0, 0, 0, 0);
+    for (var i = 0; i < self.vertexNormalPairs.length; i++) {
+        var ni = self.nextVertex(i);
+        // (yi - suc(yi))*(zi + suc(zi)
+        out.x += (vertexPool[self.vertexNormalPairs[i].vertex].y - vertexPool[self.vertexNormalPairs[ni].vertex].y) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex].z + vertexPool[self.vertexNormalPairs[ni].vertex].z);
+
+        // (zi - suc(zi))*(xi + suc(xi)
+        out.y += (vertexPool[self.vertexNormalPairs[i].vertex].z - vertexPool[self.vertexNormalPairs[ni].vertex].z) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex].x + vertexPool[self.vertexNormalPairs[ni].vertex].x);
+
+        // (xi - suc(xi))*(yi + suc(yi)
+        out.z += (vertexPool[self.vertexNormalPairs[i].vertex].x - vertexPool[self.vertexNormalPairs[ni].vertex].x) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex].y + vertexPool[self.vertexNormalPairs[ni].vertex].y);
+    }
+
+   	return out;
+  }
+
+  self.computeCenter = function(vertexPool) {
+    // TODO: test
+    var center = new Vertex4(0, 0, 0, 1);
+    var nvertex = self.vertexNormalPairs.length;
+    for (var i = 0; i < nvertex; i++) {
+        center.x += vertexPool[self.vertexNormalPairs[i].vertex].x;
+        center.y += vertexPool[self.vertexNormalPairs[i].vertex].y;
+        center.z += vertexPool[self.vertexNormalPairs[i].vertex].z;
+    }
+
+    center.x /= nvertex;
+    center.y /= nvertex;
+    center.z /= nvertex;
+        
+    return center;
+  }
+
+  return self;
+}
+
+
+function Mesh() {
+  var self = object();
+
+  self.vertexPool;
+  self.normalPool;
+  self.faces;
+
+  self.compiledVertex;
+
+  self.init = function(nvertex, nnormals) {
+    self.vertexPool = generateArrayWithDefaultObject(nvertex, Vector4);
+    self.normalPool = generateArrayWithDefaultObject(nnormals, Vector4);
+    self.faces = generateArrayWithDefaultObject(nnormals, Face);
+  }
+
+  self.computeNormals = function() {
+    for (var i = 0; i < self.faces.length; i++) {
+      self.normalPool[i] = self.faces[i].computeNormal(self.vertexPool);
+      for (var j = 0; j < self.faces[i].vertexNormalPairs.length; j++) {
+        self.faces[i].vertexNormalPairs[j].normal = i;
+      }
+    }
+
+  }
+
+  self.compile = function() {
+
+    var compiledVertexCount = 0;
+    for (var i = 0; i < self.faces.length; i++) {
+      for (var j = 0; j < self.faces[i].vertexNormalPairs.length; j++) {
+        compiledVertexCount++;
+      }
+    }
+
+    self.compiledVertex = new Array(compiledVertexCount * 6); // 3 vertex, 3 normal
+    var n = 0;
+    for (var i = 0; i < self.faces.length; i++) {
+        for (var j = 0; j < self.faces[i].vertexNormalPairs.length; j++) {
+            var iV = self.faces[i].vertexNormalPairs[j].vertex;
+            var iN = self.faces[i].vertexNormalPairs[j].normal;
+            for (var k = 0; k < 3; k++) {
+                self.compiledVertex[n + k] = self.vertexPool[iV].get(k);
+                self.compiledVertex[n + k + 3] = self.normalPool[iN].get(k);
+            }
+            n += 6;
+        }
+    }
+  }
+
+  return self;
+}
+
+/*******************************************************
+ *******************************************************
+ * Game arquitecture
+ *******************************************************
+ ******************************************************/
 
 function GameState() {
   var self = object();
@@ -163,63 +401,11 @@ function Game() {
   return self;
 }
 
-function loadFile(path) {
-    var xhr = new XMLHttpRequest;
-    xhr.open("get", path, false /* synchronous */);
-    xhr.send(null);
-    if (xhr.readyState == 4) {
-      return text = xhr.responseText;
-    }
-
-    return null;
-}
-
-function Shader() {
-  var self = object();
-
-  self.program;
-  self.init = function(vertPathName, fragPathName) {
-    var shadersData = {
-      vertex: { 
-        type:gl.VERTEX_SHADER,
-        dataPath:vertPathName,
-        compiledShader:null
-      },
-      fragment: { 
-        type:gl.FRAGMENT_SHADER,
-        dataPath:fragPathName,
-        compiledShader:null
-      }
-    };
-    for (var type in shadersData) {
-      var shaderData = shadersData[type];
-      var shader = gl.createShader(shaderData.type);
-      var shaderText = loadFile(shaderData.dataPath);
-      gl.shaderSource(shader, shaderText);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-          throw gl.getShaderInfoLog(shader);
-
-      shaderData.compiledShader = shader;
-    }
-
-    var shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, shadersData.vertex.compiledShader);
-    gl.attachShader(shaderProgram, shadersData.fragment.compiledShader);
-    gl.linkProgram(shaderProgram);
-
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert("Could not initialise shaders");
-    }
-    self.program = shaderProgram;
-  }
-
-  self.bind = function() {
-    gl.useProgram(self.program);
-  }
-
-  return self;
-}
+/*******************************************************
+ *******************************************************
+ * Game implementation
+ *******************************************************
+ ******************************************************/
 
 function Level() {
   var self = object(new GameState());
@@ -353,23 +539,11 @@ function GameApp() {
   return self;
 }
 
-
-function initGL(canvas) {
-}
-
-function initShaders() {
-    var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
-    shader.bind();
-
-    shaderProgram = shader.program;
-
-    shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
-
-    shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
-    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
-}
+/*******************************************************
+ *******************************************************
+ * Main
+ *******************************************************
+ ******************************************************/
 
 function main() {
     var canvas = document.getElementById("canvas");
@@ -378,3 +552,71 @@ function main() {
     game.init(canvas);
     game.run();
 }
+
+m = new Mesh();
+m.init(8, 12);
+m.vertexPool[0] = new Vector4(-0.5, -0.5, -0.5, 1);
+m.vertexPool[1] = new Vector4(-0.5, -0.5, 0.5, 1);
+m.vertexPool[2] = new Vector4(-0.5, 0.5, -0.5, 1);
+m.vertexPool[3] = new Vector4(-0.5, 0.5, 0.5, 1);
+m.vertexPool[4] = new Vector4(0.5, -0.5, -0.5, 1);
+m.vertexPool[5] = new Vector4(0.5, -0.5, 0.5, 1);
+m.vertexPool[6] = new Vector4(0.5, 0.5, -0.5, 1);
+m.vertexPool[7] = new Vector4(0.5, 0.5, 0.5, 1);
+
+m.faces[0].init(3);
+m.faces[0].vertexNormalPairs[0].vertex = 4;
+m.faces[0].vertexNormalPairs[1].vertex = 6;
+m.faces[0].vertexNormalPairs[2].vertex = 5;
+m.faces[1].init(3);
+m.faces[1].vertexNormalPairs[0].vertex = 5;
+m.faces[1].vertexNormalPairs[1].vertex = 6;
+m.faces[1].vertexNormalPairs[2].vertex = 7;
+
+m.faces[2].init(3);
+m.faces[2].vertexNormalPairs[0].vertex = 6;
+m.faces[2].vertexNormalPairs[1].vertex = 2;
+m.faces[2].vertexNormalPairs[2].vertex = 7;
+m.faces[3].init(3);
+m.faces[3].vertexNormalPairs[0].vertex = 7;
+m.faces[3].vertexNormalPairs[1].vertex = 2;
+m.faces[3].vertexNormalPairs[2].vertex = 3;
+
+m.faces[4].init(3);
+m.faces[4].vertexNormalPairs[0].vertex = 2;
+m.faces[4].vertexNormalPairs[1].vertex = 0;
+m.faces[4].vertexNormalPairs[2].vertex = 3;
+m.faces[5].init(3);
+m.faces[5].vertexNormalPairs[0].vertex = 3;
+m.faces[5].vertexNormalPairs[1].vertex = 0;
+m.faces[5].vertexNormalPairs[2].vertex = 1;
+
+m.faces[6].init(3);
+m.faces[6].vertexNormalPairs[0].vertex = 0;
+m.faces[6].vertexNormalPairs[1].vertex = 4;
+m.faces[6].vertexNormalPairs[2].vertex = 1;
+m.faces[7].init(3);
+m.faces[7].vertexNormalPairs[0].vertex = 1;
+m.faces[7].vertexNormalPairs[1].vertex = 4;
+m.faces[7].vertexNormalPairs[2].vertex = 5;
+
+m.faces[8].init(3);
+m.faces[8].vertexNormalPairs[0].vertex = 7;
+m.faces[8].vertexNormalPairs[1].vertex = 3;
+m.faces[8].vertexNormalPairs[2].vertex = 5;
+m.faces[9].init(3);
+m.faces[9].vertexNormalPairs[0].vertex = 5;
+m.faces[9].vertexNormalPairs[1].vertex = 3;
+m.faces[9].vertexNormalPairs[2].vertex = 1;
+
+m.faces[10].init(3);
+m.faces[10].vertexNormalPairs[0].vertex = 4;
+m.faces[10].vertexNormalPairs[1].vertex = 0;
+m.faces[10].vertexNormalPairs[2].vertex = 6;
+m.faces[11].init(3);
+m.faces[11].vertexNormalPairs[0].vertex = 6;
+m.faces[11].vertexNormalPairs[1].vertex = 0;
+m.faces[11].vertexNormalPairs[2].vertex = 2;
+
+m.computeNormals();
+m.compile();
