@@ -1,5 +1,20 @@
 var gl;
 
+/**
+ * Inheritance
+ */
+function object(o) {
+  function F() { };
+  if (o) {
+    F.prototype = o;
+    n = new F();
+    n.super = o;
+    return n;
+  } else {
+    return new F();  
+  }
+}
+
 var WebGl = {
   game: null,
   input: new Input(),
@@ -39,54 +54,179 @@ var WebGl = {
 }
 
 function Input() {
-  this.keyStates = [];
-  this.prevKeyStates = [];
-  this.currKeyStates = [];
+  var self = object();
 
-  this.onKeyPressed = function(keyCode) {
-    this.keyStates[keyCode] = true;
+  self.keyStates = [];
+  self.prevKeyStates = [];
+  self.currKeyStates = [];
+
+  self.onKeyPressed = function(keyCode) {
+    self.keyStates[keyCode] = true;
     dirtyKeys[nDirtyKeys++] = keyCode;
   };
-  this.onKeyReleased = function(keyCode) {
-    this.keyStates[keyCode] = false;
+  self.onKeyReleased = function(keyCode) {
+    self.keyStates[keyCode] = false;
     dirtyKeys[nDirtyKeys++] = keyCode;
   };
 
-  this.update = function() {
+  self.update = function() {
     var nextNumDirtyKeys = 0;
     for (var i = 0; i < nDirtyKeys; i++) {
       var idx = dirtyKeys[i];
-      this.prevKeyStates[idx] = this.currKeyStates[idx];
-      this.currKeyStates[idx] = this.keyStates[idx];
+      self.prevKeyStates[idx] = self.currKeyStates[idx];
+      self.currKeyStates[idx] = self.keyStates[idx];
       
       // If value has changed, consider them as dirty for next step
-      if (this.currKeyStates[idx] ^ this.prevKeyStates[idx]) {
+      if (self.currKeyStates[idx] ^ self.prevKeyStates[idx]) {
           dirtyKeys[nextNumDirtyKeys++] = idx;
       }
     }
     nDirtyKeys = nextNumDirtyKeys;
   }
 
-  this.keyCheck = function(keyCode) {
-    return this.currKeyStates[keyCode];
+  self.keyCheck = function(keyCode) {
+    return self.currKeyStates[keyCode];
   }
 
-  this.keyPressed = function(keyCode) {
-    return this.currKeyStates[keyCode] && !this.prevKeyStates[keyCode];
+  self.keyPressed = function(keyCode) {
+    return self.currKeyStates[keyCode] && !self.prevKeyStates[keyCode];
   }
 
-  this.keyReleased = function(keyCode) {
-    return !this.currKeyStates[keyCode] && this.prevKeyStates[keyCode];
+  self.keyReleased = function(keyCode) {
+    return !self.currKeyStates[keyCode] && self.prevKeyStates[keyCode];
   }
 
   // Private data
   var dirtyKeys = [];
   var nDirtyKeys = 0;
+
+  return self;
 }
 
 function GameState() {
-  this.game;
-  this.init = function() {
+  var self = object();
+
+  self.game;
+  self.init = function() {
+  }
+
+  self.update = function() {
+  }
+
+  self.render = function() {
+  }
+
+  return self;
+}
+
+function Game() {
+  var self = object();
+
+  self.width;
+  self.height;
+  self.world;
+  self.input;
+
+  self.initSettings = function() {
+    self.width = 640;
+    self.height = 480;
+  }
+    
+  self.init = function(canvas) {
+    self.initSettings();
+    WebGl.game = self;
+    WebGl.canvas = self;
+    WebGl.init();
+    self.input = WebGl.input;
+
+  }
+
+  self.update = function() {
+    self.input.update();
+    self.world.update();
+  }
+
+  self.render = function() {
+    self.world.render();
+  }
+
+  self.changeWorld = function(world) {
+    world.game = self;
+    world.init();
+    self.world = world;
+  }
+
+  self.run = function() {
+    WebGl.run();
+  }
+
+  return self;
+}
+
+function loadFile(path) {
+    var xhr = new XMLHttpRequest;
+    xhr.open("get", path, false /* synchronous */);
+    xhr.send(null);
+    if (xhr.readyState == 4) {
+      return text = xhr.responseText;
+    }
+
+    return null;
+}
+
+function Shader() {
+  var self = object();
+
+  self.program;
+  self.init = function(vertPathName, fragPathName) {
+    var shadersData = {
+      vertex: { 
+        type:gl.VERTEX_SHADER,
+        dataPath:vertPathName,
+        compiledShader:null
+      },
+      fragment: { 
+        type:gl.FRAGMENT_SHADER,
+        dataPath:fragPathName,
+        compiledShader:null
+      }
+    };
+    for (var type in shadersData) {
+      var shaderData = shadersData[type];
+      var shader = gl.createShader(shaderData.type);
+      var shaderText = loadFile(shaderData.dataPath);
+      gl.shaderSource(shader, shaderText);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+          throw gl.getShaderInfoLog(shader);
+
+      shaderData.compiledShader = shader;
+    }
+
+    var shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, shadersData.vertex.compiledShader);
+    gl.attachShader(shaderProgram, shadersData.fragment.compiledShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert("Could not initialise shaders");
+    }
+    self.program = shaderProgram;
+  }
+
+  self.bind = function() {
+    gl.useProgram(self.program);
+  }
+
+  return self;
+}
+
+function Level() {
+  var self = object(new GameState());
+
+  self.init = function() {
+    self.super.init();
+    
     // Shaders
     var shader = new Shader();
     shader.init("shader.vs", "shader.fs");
@@ -121,7 +261,9 @@ function GameState() {
     squareVertexPositionBuffer.numItems = 4;
   }
 
-  this.update = function() {
+  self.update = function() {
+    self.super.update();
+
     if (this.game.input.keyCheck(87)) {  // w
       y += 0.1;
     }
@@ -133,10 +275,12 @@ function GameState() {
     }
     if (this.game.input.keyCheck(68)) {  // d
       x += 0.1;
-    }    
+    }
   }
 
-  this.render = function() {
+  self.render = function() {
+    self.super.render();
+ 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
 
@@ -174,112 +318,39 @@ function GameState() {
 
   var x = 0;
   var y = 0;
+
+  return self;
 }
 
-function Game() {
-  this.width;
-  this.height;
-  this.world;
-  this.input;
-
-  this.initSettings = function() {
-    this.width = 640;
-    this.height = 480;
-  }
-    
-  this.init = function(canvas) {
-    this.initSettings();
-    WebGl.game = this;
-    WebGl.canvas = this;
-    WebGl.init();
-    this.input = WebGl.input;
-
-    this.changeWorld(new GameState());
+function GameApp() {
+  var self = object(new Game());
+  
+  self.initSettings = function() {
+    self.width = 640;
+    self.height = 480;
   }
 
-  this.update = function() {
-    this.input.update();
-    this.world.update();
+  self.init = function() {
+    self.super.init();
 
+    self.changeWorld(new Level());
+  }
 
-    if (this.input.keyPressed(83)) {
+  self.update = function() {
+    self.super.update();
+
+    if (self.input.keyPressed(83)) {
       console.log("pressed");
     }
-    if (this.input.keyReleased(83)) {
+    if (self.input.keyReleased(83)) {
       console.log("released");
     }
-    if (this.input.keyCheck(83)) {
+    if (self.input.keyCheck(83)) {
       console.log("down");
     }
   }
 
-  this.render = function() {
-    this.world.render();
-  }
-
-  this.changeWorld = function(world) {
-    world.game = this;
-    world.init();
-    this.world = world;
-  }
-
-  this.run = function() {
-    WebGl.run();
-  }
-}
-
-function loadFile(path) {
-    var xhr = new XMLHttpRequest;
-    xhr.open("get", path, false /* synchronous */);
-    xhr.send(null);
-    if (xhr.readyState == 4) {
-      return text = xhr.responseText;
-    }
-
-    return null;
-}
-
-function Shader() {
-  this.program;
-  this.init = function(vertPathName, fragPathName) {
-    var shadersData = {
-      vertex: { 
-        type:gl.VERTEX_SHADER,
-        dataPath:vertPathName,
-        compiledShader:null
-      },
-      fragment: { 
-        type:gl.FRAGMENT_SHADER,
-        dataPath:fragPathName,
-        compiledShader:null
-      }
-    };
-    for (var type in shadersData) {
-      var shaderData = shadersData[type];
-      var shader = gl.createShader(shaderData.type);
-      var shaderText = loadFile(shaderData.dataPath);
-      gl.shaderSource(shader, shaderText);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-          throw gl.getShaderInfoLog(shader);
-
-      shaderData.compiledShader = shader;
-    }
-
-    var shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, shadersData.vertex.compiledShader);
-    gl.attachShader(shaderProgram, shadersData.fragment.compiledShader);
-    gl.linkProgram(shaderProgram);
-
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert("Could not initialise shaders");
-    }
-    this.program = shaderProgram;
-  }
-
-  this.bind = function() {
-    gl.useProgram(this.program);
-  }
+  return self;
 }
 
 
@@ -303,8 +374,7 @@ function initShaders() {
 function main() {
     var canvas = document.getElementById("canvas");
 
-    // TODO: Game inheritance
-    var game = new Game();
+    game = new GameApp();
     game.init(canvas);
     game.run();
 }
