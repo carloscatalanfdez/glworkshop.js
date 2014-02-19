@@ -34,13 +34,17 @@ function loadFile(path) {
     return null;
 }
 
-function generateArrayWithDefaultObject(length, Object) {
+function generateArrayWithInitializer(length, generate) {
   var array = new Array(length);
   for (var i = 0; i < length; i++) {
-    array[i] = new Object();
+    array[i] = generate();
   }
 
   return array;
+}
+
+function degToRad(degrees) {
+  return degrees * Math.PI / 180;
 }
 
 /*******************************************************
@@ -85,6 +89,40 @@ var WebGl = {
   step: function() {
     WebGl.game.update();
     WebGl.game.render();
+  }
+}
+
+/**
+ * Global modelview matrix
+ */
+var mv = {
+  matrixStack: [],
+  matrix: mat4.create(),
+  pushMatrix: function() {
+    var copy = mat4.create();
+    mat4.set(mv.matrix, copy);
+    mv.matrixStack.push(copy);
+  },
+  popMatrix: function() {
+    if (mv.matrixStack.length == 0) {
+      throw "Invalid popMatrix!";
+    }
+    // mv.matrix = mv.matrixStack.pop();
+    mat4.set(mv.matrixStack.pop(), mv.matrix);
+  },
+  resetWithMatrix: function(m) {
+    mv.matrixStack = [];
+    mv.matrix = m;
+  }
+}
+
+/**
+ * Global projection matrix
+ */
+var p = {
+  matrix: mat4.create(),
+  resetWithMatrix: function(m) {
+    p.matrix = m;
   }
 }
 
@@ -191,50 +229,13 @@ function Input() {
  *******************************************************
  ******************************************************/
 
-function Vector4(x, y, z, w) {
-  var self = object();
-
-  self.x = x || 0;
-  self.y = y || 0;
-  self.z = z || 0;
-  self.w = w || 0;
-  
-  self.get = function(idx) {
-    switch(idx) {
-      case 0: return self.x;
-      case 1: return self.y;
-      case 2: return self.z;
-      case 3: return self.w;
-      default: return 0;
-    }
-  }
-
-  self.set = function(idx, value) {
-    switch(idx) {
-      case 0: self.x = value;
-      case 1: self.y = value;
-      case 2: self.z = value;
-      case 3: self.w = value;
-    }
-  }
-
-  return self;
-}
-
 function Face() {
   var self = object();
 
   self.vertexNormalPairs;
 
   self.init = function(nvertex) {
-    self.vertexNormalPairs = generateArrayWithDefaultObject(
-      nvertex, 
-      function() {
-        var self = object();
-        self.vertex;
-        self.normal;
-        return self;
-      });
+    self.vertexNormalPairs = generateArrayWithInitializer(nvertex, function() { return {} });
   }
 
   self.nextVertex = function(idx) {
@@ -243,20 +244,20 @@ function Face() {
 
   self.computeNormal = function(vertexPool) {
     
-    var out = new Vector4(0, 0, 0, 0);
+    var out = quat4.create(); out[0] = out[1] = out[2] = out[3] = 0;
     for (var i = 0; i < self.vertexNormalPairs.length; i++) {
         var ni = self.nextVertex(i);
-        // (yi - suc(yi))*(zi + suc(zi)
-        out.x += (vertexPool[self.vertexNormalPairs[i].vertex].y - vertexPool[self.vertexNormalPairs[ni].vertex].y) *
-                    (vertexPool[self.vertexNormalPairs[i].vertex].z + vertexPool[self.vertexNormalPairs[ni].vertex].z);
+        // (yi - suc(yi))*(zi + suc(zi))
+        out[0] += (vertexPool[self.vertexNormalPairs[i].vertex][1] - vertexPool[self.vertexNormalPairs[ni].vertex][1]) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex][2] + vertexPool[self.vertexNormalPairs[ni].vertex][2]);
 
-        // (zi - suc(zi))*(xi + suc(xi)
-        out.y += (vertexPool[self.vertexNormalPairs[i].vertex].z - vertexPool[self.vertexNormalPairs[ni].vertex].z) *
-                    (vertexPool[self.vertexNormalPairs[i].vertex].x + vertexPool[self.vertexNormalPairs[ni].vertex].x);
+        // (zi - suc(zi))*(xi + suc(xi))
+        out[1] += (vertexPool[self.vertexNormalPairs[i].vertex][2] - vertexPool[self.vertexNormalPairs[ni].vertex][2]) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex][0] + vertexPool[self.vertexNormalPairs[ni].vertex][0]);
 
-        // (xi - suc(xi))*(yi + suc(yi)
-        out.z += (vertexPool[self.vertexNormalPairs[i].vertex].x - vertexPool[self.vertexNormalPairs[ni].vertex].x) *
-                    (vertexPool[self.vertexNormalPairs[i].vertex].y + vertexPool[self.vertexNormalPairs[ni].vertex].y);
+        // (xi - suc(xi))*(yi + suc(yi))
+        out[2] += (vertexPool[self.vertexNormalPairs[i].vertex][0] - vertexPool[self.vertexNormalPairs[ni].vertex][0]) *
+                    (vertexPool[self.vertexNormalPairs[i].vertex][1] + vertexPool[self.vertexNormalPairs[ni].vertex][1]);
     }
 
    	return out;
@@ -264,17 +265,17 @@ function Face() {
 
   self.computeCenter = function(vertexPool) {
     // TODO: test
-    var center = new Vertex4(0, 0, 0, 1);
+    var center = quat4.create(); out[0] = out[1] = out[2] = 0; out[3] = 1;
     var nvertex = self.vertexNormalPairs.length;
     for (var i = 0; i < nvertex; i++) {
-        center.x += vertexPool[self.vertexNormalPairs[i].vertex].x;
-        center.y += vertexPool[self.vertexNormalPairs[i].vertex].y;
-        center.z += vertexPool[self.vertexNormalPairs[i].vertex].z;
+        center[0] += vertexPool[self.vertexNormalPairs[i].vertex][0];
+        center[1] += vertexPool[self.vertexNormalPairs[i].vertex][1];
+        center[2] += vertexPool[self.vertexNormalPairs[i].vertex][2];
     }
 
-    center.x /= nvertex;
-    center.y /= nvertex;
-    center.z /= nvertex;
+    center[0] /= nvertex;
+    center[1] /= nvertex;
+    center[2] /= nvertex;
         
     return center;
   }
@@ -294,9 +295,9 @@ function Mesh() {
   self.compiledVertexBuffer;
 
   self.init = function(nvertex, nnormals) {
-    self.vertexPool = generateArrayWithDefaultObject(nvertex, Vector4);
-    self.normalPool = generateArrayWithDefaultObject(nnormals, Vector4);
-    self.faces = generateArrayWithDefaultObject(nnormals, Face);
+    self.vertexPool = generateArrayWithInitializer(nvertex, function() { return quat4.create() });
+    self.normalPool = generateArrayWithInitializer(nnormals, function() { return quat4.create() });
+    self.faces = generateArrayWithInitializer(nnormals, function() { return new Face(); });
   }
 
   self.computeNormals = function() {
@@ -325,8 +326,8 @@ function Mesh() {
             var iV = self.faces[i].vertexNormalPairs[j].vertex;
             var iN = self.faces[i].vertexNormalPairs[j].normal;
             for (var k = 0; k < 3; k++) {
-                self.compiledVertex[n + k] = self.vertexPool[iV].get(k);
-                self.compiledVertex[n + k + 3] = self.normalPool[iN].get(k);
+                self.compiledVertex[n + k] = self.vertexPool[iV][k];
+                self.compiledVertex[n + k + 3] = self.normalPool[iN][k];
             }
             n += 6;
         }
@@ -344,6 +345,91 @@ function Mesh() {
 
 /*******************************************************
  *******************************************************
+ * View math
+ *******************************************************
+ ******************************************************/
+
+function Camera() {
+  var self = object();
+
+  self.mvMatrix = mat4.create();
+  self.pMatrix = mat4.create();
+  self.viewVolume = {};
+
+  /**
+   * Stablishes this object as the current MVP matrix wrapper
+   * After this call, accessing self.mvMatrix will have the same
+   * effect as accessing mv.matrix (same with self.pMatrix and p.matrix)
+   */
+  self.init = function() {
+
+    // TODO: set these
+    // self.eye = quat4.create([10, 10, 10, 1]);
+    // var target = quat4.create([0, 0, 0, 1]);
+    // self.lookAt = quat4.create(eye.sub(target));
+    // self.focalLength = self.lookAt.module();
+    // self.lookAt.normalize();
+
+    self.viewVolume.N = 2;
+    self.viewVolume.F = 10000;
+    self.viewVolume.xR = 0.2;
+    self.viewVolume.xL = - self.viewVolume.xR;
+    self.viewVolume.yT = 0.2;
+    self.viewVolume.yB = - self.viewVolume.yT;
+    var vv = self.viewVolume;
+
+    // mat4.frustum(vv.xL, vv.xR, vv.yT, vv.yB, vv.N, vv.F, p.matrix); // TODO: make this work
+    mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, self.pMatrix);
+    mat4.identity(self.mvMatrix);
+
+    mv.resetWithMatrix(self.mvMatrix);
+    p.resetWithMatrix(self.pMatrix);
+  }
+
+  self.translate = function(tx, ty, tz) {
+    mat4.translate(mv.matrix, [tx, ty, tz]);
+  }
+
+  self.translateX = function(tx) {
+    self.translate(tx, ty, tz);
+  }
+
+  self.translateX = function(ty) {
+    self.translate(tx, ty, tz);
+  }
+
+  self.translateZ = function(tz) {
+    self.translate(tx, ty, tz);
+  }
+
+  self.pitch = function(alpha) {
+    self.rotate(mv.matrix, alpha, [1, 0, 0]);
+  }
+
+  self.yaw = function(alpha) {
+    self.rotate(mv.matrix, alpha, [0, 1, 0]);
+  }
+
+  self.roll = function(alpha) {
+    self.rotate(mv.matrix, alpha, [0, 0, 1]);
+  }
+
+  self.orbitate = function() {
+
+  }
+
+  self.commit = function() {
+
+  }
+  
+
+
+  return self;
+}
+
+
+/*******************************************************
+ *******************************************************
  * Game arquitecture
  *******************************************************
  ******************************************************/
@@ -352,7 +438,9 @@ function GameState() {
   var self = object();
 
   self.game;
+  self.camera;
   self.init = function() {
+    self.camera = new Camera();
   }
 
   self.update = function() {
@@ -417,8 +505,11 @@ function Game() {
 function Level() {
   var self = object(new GameState());
 
+
   self.init = function() {
     self.super.init();
+
+    self.camera.init();
     
     // Shaders
     var shader = new Shader();
@@ -444,19 +535,6 @@ function Level() {
     triangleVertexPositionBuffer.itemSize = 6;
     triangleVertexPositionBuffer.numItems = 3;
 
-
-    squareVertexPositionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
-    vertices = [
-       1.0,  1.0,  0.0, 0.0, 0.0, 0.0,
-      -1.0,  1.0,  0.0, 0.0, 0.0, 0.0,
-       1.0, -1.0,  0.0, 0.0, 0.0, 0.0,
-      -1.0, -1.0,  0.0, 0.0, 0.0, 0.0
-    ];
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    squareVertexPositionBuffer.itemSize = 6;
-    squareVertexPositionBuffer.numItems = 4;
-
     initBigGuy(shader);
   }
 
@@ -480,47 +558,39 @@ function Level() {
   self.render = function() {
     self.super.render();
  
+    // Clear view
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
-
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+    self.camera.commit();
 
-    mat4.identity(mvMatrix);
+    mv.pushMatrix();
+      self.camera.translate(-1.5 + x, 0, -7.0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6*4, 0);
+      gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6*4, 3*4);
+      setMatrixUniforms();
+      gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+    mv.popMatrix();
     
-    mat4.translate(mvMatrix, [-1.5 + x, 0.0 + y, -7.0]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
-    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6*4, 0);
-    gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6*4, 3*4);
-    setMatrixUniforms();
-    gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
-
-    mat4.translate(mvMatrix, [3.0, 0.0, 0.0]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
-    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6*4, 0);
-    gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6*4, 3*4);
-    setMatrixUniforms();
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);    
-
-    mat4.translate(mvMatrix, [3.0 + 2.0, 0.0, 0.0]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, m.compiledVertexBuffer);
-    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 0);
-    gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
-    setMatrixUniforms();
-    gl.drawArrays(gl.TRIANGLES, 0, m.compiledVertexBuffer.numItems);
+    mv.pushMatrix();
+      self.camera.translate(x, 0.5, -y);
+      gl.bindBuffer(gl.ARRAY_BUFFER, m.compiledVertexBuffer);
+      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 0);
+      gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
+      setMatrixUniforms();
+      gl.drawArrays(gl.TRIANGLES, 0, m.compiledVertexBuffer.numItems);
+    mv.popMatrix();
   }
 
   // Private
-  var mvMatrix = mat4.create();
-  var pMatrix = mat4.create();
   var triangleVertexPositionBuffer;
-  var squareVertexPositionBuffer;
 
   var setMatrixUniforms = function() {
-      gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
-      gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+    gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, self.camera.pMatrix);
+    gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, self.camera.mvMatrix);
   }
 
   var x = 0;
@@ -545,16 +615,6 @@ function GameApp() {
 
   self.update = function() {
     self.super.update();
-
-    if (self.input.keyPressed(83)) {
-      console.log("pressed");
-    }
-    if (self.input.keyReleased(83)) {
-      console.log("released");
-    }
-    if (self.input.keyCheck(83)) {
-      console.log("down");
-    }
   }
 
   return self;
@@ -578,14 +638,14 @@ function main() {
 function initBigGuy(shader) {
   m = new Mesh();
   m.init(8, 12);
-  m.vertexPool[0] = new Vector4(-0.5, -0.5, -0.5, 1);
-  m.vertexPool[1] = new Vector4(-0.5, -0.5, 0.5, 1);
-  m.vertexPool[2] = new Vector4(-0.5, 0.5, -0.5, 1);
-  m.vertexPool[3] = new Vector4(-0.5, 0.5, 0.5, 1);
-  m.vertexPool[4] = new Vector4(0.5, -0.5, -0.5, 1);
-  m.vertexPool[5] = new Vector4(0.5, -0.5, 0.5, 1);
-  m.vertexPool[6] = new Vector4(0.5, 0.5, -0.5, 1);
-  m.vertexPool[7] = new Vector4(0.5, 0.5, 0.5, 1);
+  m.vertexPool[0] = quat4.create([-0.5, -0.5, -0.5, 1]);
+  m.vertexPool[1] = quat4.create([-0.5, -0.5, 0.5, 1]);
+  m.vertexPool[2] = quat4.create([-0.5, 0.5, -0.5, 1]);
+  m.vertexPool[3] = quat4.create([-0.5, 0.5, 0.5, 1]);
+  m.vertexPool[4] = quat4.create([0.5, -0.5, -0.5, 1]);
+  m.vertexPool[5] = quat4.create([0.5, -0.5, 0.5, 1]);
+  m.vertexPool[6] = quat4.create([0.5, 0.5, -0.5, 1]);
+  m.vertexPool[7] = quat4.create([0.5, 0.5, 0.5, 1]);
 
   m.faces[0].init(3);
   m.faces[0].vertexNormalPairs[0].vertex = 4;
