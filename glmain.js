@@ -415,14 +415,8 @@ function Camera() {
   }
 
   self.orbitate = function() {
-
+    // TODO
   }
-
-  self.commit = function() {
-
-  }
-  
-
 
   return self;
 }
@@ -433,24 +427,6 @@ function Camera() {
  * Game arquitecture
  *******************************************************
  ******************************************************/
-
-function GameState() {
-  var self = object();
-
-  self.game;
-  self.camera;
-  self.init = function() {
-    self.camera = new Camera();
-  }
-
-  self.update = function() {
-  }
-
-  self.render = function() {
-  }
-
-  return self;
-}
 
 function Game() {
   var self = object();
@@ -494,6 +470,58 @@ function Game() {
   }
 
   return self;
+}
+
+function GameState() {
+  var self = object();
+
+  self.game;
+  self.camera;
+  self.init = function() {
+    self.camera = new Camera();
+  }
+
+  self.update = function() {
+  }
+
+  self.render = function() {
+  }
+
+  return self;
+}
+
+function Entity() {
+  var self = object();
+
+  self.game;
+  self.world;
+  self.transform;
+  self.mesh;
+
+  self.camera;
+  self.init = function(game, world) {
+    self.game = game;
+    self.world = world
+    self.transform = mat4.create();
+    mat4.identity(self.transform);
+  }
+
+  self.update = function() {
+  }
+
+  self.render = function() {
+    mv.pushMatrix();
+      mv.matrix.set(transform);
+
+      if (self.mesh) {
+        mesh.render();
+      }
+
+    mv.popMatrix();    
+  }
+
+  return self;
+
 }
 
 /*******************************************************
@@ -563,8 +591,6 @@ function Level() {
     gl.enable(gl.DEPTH_TEST);
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    self.camera.commit();
 
     mv.pushMatrix();
       self.camera.translate(-1.5 + x, 0, -7.0);
