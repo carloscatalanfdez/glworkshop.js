@@ -791,7 +791,24 @@ function Player() {
       x += 0.1;
     }
 
+    var yaw = 0, pitch = 0;
+    if (self.game.input.keyCheck(37)) {  // left
+      yaw -= 0.1;
+    }
+    if (self.game.input.keyCheck(38)) {  // up
+      pitch += 0.1;
+    }
+    if (self.game.input.keyCheck(39)) {  // right
+      pitch -= 0.1;
+    }
+    if (self.game.input.keyCheck(40)) {  // down
+      yaw -= 0.1;
+    }
+
     mat4.translate(self.transform, [x, 0, y]);
+
+    mat4.rotate(self.transform, yaw, [0, 1, 0]);
+    mat4.rotate(self.transform, pitch, [1, 0, 0]);
   }
 
 
