@@ -130,6 +130,9 @@ function Shader() {
   var self = object();
 
   self.program;
+  self.attributes = {};
+  self.uniforms = {};
+
   self.init = function(vertPathName, fragPathName) {
     var shadersData = {
       vertex: { 
@@ -164,10 +167,28 @@ function Shader() {
         alert("Could not initialise shaders");
     }
     self.program = shaderProgram;
+    
+    self.attributes = getDefaultAttributes(self.program);
+    self.uniforms = getDefaultUniforms(self.program);
   }
 
   self.bind = function() {
     gl.useProgram(self.program);
+  }
+
+  // Private declarations
+  var getDefaultAttributes = function(program) {
+    return {
+      vertexPosition: gl.getAttribLocation(program, "aVertexPosition"),
+      normalPosition: gl.getAttribLocation(program, "aNormalPosition")
+    }
+  }
+
+  var getDefaultUniforms = function(program) {
+    return {
+      pMatrix: gl.getUniformLocation(program, "uPMatrix"),
+      mvMatrix: gl.getUniformLocation(program, "uMVMatrix")  
+    }
   }
 
   return self;
@@ -290,6 +311,7 @@ function Mesh() {
   self.vertexPool;
   self.normalPool;
   self.faces;
+  self.shader;
 
   self.compiledVertex;
   self.compiledVertexBuffer;
@@ -338,6 +360,29 @@ function Mesh() {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(self.compiledVertex), gl.STATIC_DRAW);
     self.compiledVertexBuffer.itemSize = 6;
     self.compiledVertexBuffer.numItems = compiledVertexCount;
+
+    self.shader = shader;
+  }
+
+  self.render = function() {
+    if (self.shader) {
+      self.shader.bind();
+
+      // Geometry attribs
+      gl.bindBuffer(gl.ARRAY_BUFFER, self.compiledVertexBuffer);
+      gl.enableVertexAttribArray(self.shader.attributes.vertexPosition);
+      gl.enableVertexAttribArray(self.shader.attributes.normalPosition);
+      gl.vertexAttribPointer(self.shader.attributes.vertexPosition, 3, gl.FLOAT, false, 6 * 4, 0);
+      gl.vertexAttribPointer(self.shader.attributes.normalPosition, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
+
+      // Scene uniforms
+      gl.uniformMatrix4fv(self.shader.uniforms.pMatrix, false, p.matrix);
+      gl.uniformMatrix4fv(self.shader.uniforms.mvMatrix, false, mv.matrix);
+
+
+      gl.drawArrays(gl.TRIANGLES, 0, self.compiledVertexBuffer.numItems);
+      
+    }
   }
 
   return self;
@@ -460,8 +505,7 @@ function Game() {
   }
 
   self.changeWorld = function(world) {
-    world.game = self;
-    world.init();
+    world.init(self);
     self.world = world;
   }
 
@@ -477,7 +521,8 @@ function GameState() {
 
   self.game;
   self.camera;
-  self.init = function() {
+  self.init = function(game) {
+    self.game = game;
     self.camera = new Camera();
   }
 
@@ -497,11 +542,12 @@ function Entity() {
   self.world;
   self.transform;
   self.mesh;
+  self.shader;
 
   self.camera;
   self.init = function(game, world) {
     self.game = game;
-    self.world = world
+    self.world = world;
     self.transform = mat4.create();
     mat4.identity(self.transform);
   }
@@ -511,10 +557,10 @@ function Entity() {
 
   self.render = function() {
     mv.pushMatrix();
-      mv.matrix.set(transform);
+      mv.matrix.set(self.transform);
 
       if (self.mesh) {
-        mesh.render();
+        self.mesh.render();
       }
 
     mv.popMatrix();    
@@ -529,101 +575,6 @@ function Entity() {
  * Game implementation
  *******************************************************
  ******************************************************/
-
-function Level() {
-  var self = object(new GameState());
-
-
-  self.init = function() {
-    self.super.init();
-
-    self.camera.init();
-    
-    // Shaders
-    var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
-    shader.bind();
-    shaderProgram = shader.program;
-    shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-    shaderProgram.normalPositionAttribute = gl.getAttribLocation(shaderProgram, "aNormalPosition");
-    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
-    gl.enableVertexAttribArray(shaderProgram.normalPositionAttribute);
-    shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
-    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");    
-
-    // // Buffers
-    triangleVertexPositionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
-    var vertices = [
-       0.0,  1.0,  0.0, 0.0, 0.0, 0.0,
-      -1.0, -1.0,  0.0, 0.0, 0.0, 0.0,
-       1.0, -1.0,  0.0, 0.0, 0.0, 0.0
-    ];
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    triangleVertexPositionBuffer.itemSize = 6;
-    triangleVertexPositionBuffer.numItems = 3;
-
-    initBigGuy(shader);
-  }
-
-  self.update = function() {
-    self.super.update();
-
-    if (this.game.input.keyCheck(87)) {  // w
-      y += 0.1;
-    }
-    if (this.game.input.keyCheck(65)) {  // a
-      x -= 0.1;
-    }
-    if (this.game.input.keyCheck(83)) {  // s
-      y -= 0.1;
-    }
-    if (this.game.input.keyCheck(68)) {  // d
-      x += 0.1;
-    }
-  }
-
-  self.render = function() {
-    self.super.render();
- 
-    // Clear view
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.enable(gl.DEPTH_TEST);
-    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    mv.pushMatrix();
-      self.camera.translate(-1.5 + x, 0, -7.0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
-      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6*4, 0);
-      gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6*4, 3*4);
-      setMatrixUniforms();
-      gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
-    mv.popMatrix();
-    
-    mv.pushMatrix();
-      self.camera.translate(x, 0.5, -y);
-      gl.bindBuffer(gl.ARRAY_BUFFER, m.compiledVertexBuffer);
-      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 0);
-      gl.vertexAttribPointer(shaderProgram.normalPositionAttribute, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
-      setMatrixUniforms();
-      gl.drawArrays(gl.TRIANGLES, 0, m.compiledVertexBuffer.numItems);
-    mv.popMatrix();
-  }
-
-  // Private
-  var triangleVertexPositionBuffer;
-
-  var setMatrixUniforms = function() {
-    gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, self.camera.pMatrix);
-    gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, self.camera.mvMatrix);
-  }
-
-  var x = 0;
-  var y = 0;
-
-  return self;
-}
 
 function GameApp() {
   var self = object(new Game());
@@ -646,6 +597,207 @@ function GameApp() {
   return self;
 }
 
+function Level() {
+  var self = object(new GameState());
+
+  self.player = new Player();
+
+  self.init = function(game) {
+    self.super.init(game);
+
+    self.camera.init();
+    
+    // Shaders
+    var shader = new Shader();
+    shader.init("shader.vs", "shader.fs");
+    shader.bind();
+    shaderProgram = shader;
+
+    gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
+    gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
+
+    // // Buffers
+    triangleVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+    var vertices = [
+       0.0,  1.0,  0.0, 0.0, 0.0, 0.0,
+      -1.0, -1.0,  0.0, 0.0, 0.0, 0.0,
+       1.0, -1.0,  0.0, 0.0, 0.0, 0.0
+    ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    triangleVertexPositionBuffer.itemSize = 6;
+    triangleVertexPositionBuffer.numItems = 3;
+
+    self.player.init(self.game, self);
+    mat4.translate(self.player.transform, [0, 0.5, -7]);
+  }
+
+  self.update = function() {
+    self.super.update();
+
+    if (self.game.input.keyCheck(87)) {  // w
+      y += 0.1;
+    }
+    if (self.game.input.keyCheck(65)) {  // a
+      x -= 0.1;
+    }
+    if (self.game.input.keyCheck(83)) {  // s
+      y -= 0.1;
+    }
+    if (self.game.input.keyCheck(68)) {  // d
+      x += 0.1;
+    }
+
+    self.player.update();
+  }
+
+  self.render = function() {
+    self.super.render();
+ 
+    // Clear view
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    mv.pushMatrix();
+      self.camera.translate(-1.5 + x, 0, -7.0);
+
+      shaderProgram.bind();
+      gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
+      gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
+
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+      gl.vertexAttribPointer(shaderProgram.attributes.vertexPosition, 3, gl.FLOAT, false, 6*4, 0);
+      gl.vertexAttribPointer(shaderProgram.attributes.normalPosition, 3, gl.FLOAT, false, 6*4, 3*4);
+
+      gl.uniformMatrix4fv(shaderProgram.uniforms.pMatrix, false, p.matrix);
+      gl.uniformMatrix4fv(shaderProgram.uniforms.mvMatrix, false, mv.matrix);
+
+      gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+    mv.popMatrix();
+    
+    self.player.render();
+  }
+
+  // Private
+  var triangleVertexPositionBuffer;
+
+  var setMatrixUniforms = function() {
+  }
+
+  var x = 0;
+  var y = 0;
+
+  return self;
+}
+
+function Player() {
+  var self = object(new Entity());
+
+  self.init = function(game, world) {
+    self.super.init(game, world);
+
+    var shader = new Shader();
+    shader.init("shader.vs", "shader.fs");
+
+    // Create mesh (cube)
+    var m = new Mesh();
+    m.init(8, 12);
+    m.vertexPool[0] = quat4.create([-0.5, -0.5, -0.5, 1]);
+    m.vertexPool[1] = quat4.create([-0.5, -0.5, 0.5, 1]);
+    m.vertexPool[2] = quat4.create([-0.5, 0.5, -0.5, 1]);
+    m.vertexPool[3] = quat4.create([-0.5, 0.5, 0.5, 1]);
+    m.vertexPool[4] = quat4.create([0.5, -0.5, -0.5, 1]);
+    m.vertexPool[5] = quat4.create([0.5, -0.5, 0.5, 1]);
+    m.vertexPool[6] = quat4.create([0.5, 0.5, -0.5, 1]);
+    m.vertexPool[7] = quat4.create([0.5, 0.5, 0.5, 1]);
+
+    m.faces[0].init(3);
+    m.faces[0].vertexNormalPairs[0].vertex = 4;
+    m.faces[0].vertexNormalPairs[1].vertex = 6;
+    m.faces[0].vertexNormalPairs[2].vertex = 5;
+    m.faces[1].init(3);
+    m.faces[1].vertexNormalPairs[0].vertex = 5;
+    m.faces[1].vertexNormalPairs[1].vertex = 6;
+    m.faces[1].vertexNormalPairs[2].vertex = 7;
+
+    m.faces[2].init(3);
+    m.faces[2].vertexNormalPairs[0].vertex = 6;
+    m.faces[2].vertexNormalPairs[1].vertex = 2;
+    m.faces[2].vertexNormalPairs[2].vertex = 7;
+    m.faces[3].init(3);
+    m.faces[3].vertexNormalPairs[0].vertex = 7;
+    m.faces[3].vertexNormalPairs[1].vertex = 2;
+    m.faces[3].vertexNormalPairs[2].vertex = 3;
+
+    m.faces[4].init(3);
+    m.faces[4].vertexNormalPairs[0].vertex = 2;
+    m.faces[4].vertexNormalPairs[1].vertex = 0;
+    m.faces[4].vertexNormalPairs[2].vertex = 3;
+    m.faces[5].init(3);
+    m.faces[5].vertexNormalPairs[0].vertex = 3;
+    m.faces[5].vertexNormalPairs[1].vertex = 0;
+    m.faces[5].vertexNormalPairs[2].vertex = 1;
+
+    m.faces[6].init(3);
+    m.faces[6].vertexNormalPairs[0].vertex = 0;
+    m.faces[6].vertexNormalPairs[1].vertex = 4;
+    m.faces[6].vertexNormalPairs[2].vertex = 1;
+    m.faces[7].init(3);
+    m.faces[7].vertexNormalPairs[0].vertex = 1;
+    m.faces[7].vertexNormalPairs[1].vertex = 4;
+    m.faces[7].vertexNormalPairs[2].vertex = 5;
+
+    m.faces[8].init(3);
+    m.faces[8].vertexNormalPairs[0].vertex = 7;
+    m.faces[8].vertexNormalPairs[1].vertex = 3;
+    m.faces[8].vertexNormalPairs[2].vertex = 5;
+    m.faces[9].init(3);
+    m.faces[9].vertexNormalPairs[0].vertex = 5;
+    m.faces[9].vertexNormalPairs[1].vertex = 3;
+    m.faces[9].vertexNormalPairs[2].vertex = 1;
+
+    m.faces[10].init(3);
+    m.faces[10].vertexNormalPairs[0].vertex = 4;
+    m.faces[10].vertexNormalPairs[1].vertex = 0;
+    m.faces[10].vertexNormalPairs[2].vertex = 6;
+    m.faces[11].init(3);
+    m.faces[11].vertexNormalPairs[0].vertex = 6;
+    m.faces[11].vertexNormalPairs[1].vertex = 0;
+    m.faces[11].vertexNormalPairs[2].vertex = 2;
+
+    m.computeNormals();
+    m.compile(shader);
+
+    self.super.mesh = m;
+  }
+
+  self.update = function() {
+    self.super.update();
+
+    var x = 0, y = 0;
+    if (self.game.input.keyCheck(87)) {  // w
+      y -= 0.1;
+    }
+    if (self.game.input.keyCheck(65)) {  // a
+      x -= 0.1;
+    }
+    if (self.game.input.keyCheck(83)) {  // s
+      y += 0.1;
+    }
+    if (self.game.input.keyCheck(68)) {  // d
+      x += 0.1;
+    }
+
+    mat4.translate(self.transform, [x, 0, y]);
+  }
+
+
+  return self;
+}
+
 /*******************************************************
  *******************************************************
  * Main
@@ -658,75 +810,4 @@ function main() {
     game = new GameApp();
     game.init(canvas);
     game.run();
-}
-
-
-function initBigGuy(shader) {
-  m = new Mesh();
-  m.init(8, 12);
-  m.vertexPool[0] = quat4.create([-0.5, -0.5, -0.5, 1]);
-  m.vertexPool[1] = quat4.create([-0.5, -0.5, 0.5, 1]);
-  m.vertexPool[2] = quat4.create([-0.5, 0.5, -0.5, 1]);
-  m.vertexPool[3] = quat4.create([-0.5, 0.5, 0.5, 1]);
-  m.vertexPool[4] = quat4.create([0.5, -0.5, -0.5, 1]);
-  m.vertexPool[5] = quat4.create([0.5, -0.5, 0.5, 1]);
-  m.vertexPool[6] = quat4.create([0.5, 0.5, -0.5, 1]);
-  m.vertexPool[7] = quat4.create([0.5, 0.5, 0.5, 1]);
-
-  m.faces[0].init(3);
-  m.faces[0].vertexNormalPairs[0].vertex = 4;
-  m.faces[0].vertexNormalPairs[1].vertex = 6;
-  m.faces[0].vertexNormalPairs[2].vertex = 5;
-  m.faces[1].init(3);
-  m.faces[1].vertexNormalPairs[0].vertex = 5;
-  m.faces[1].vertexNormalPairs[1].vertex = 6;
-  m.faces[1].vertexNormalPairs[2].vertex = 7;
-
-  m.faces[2].init(3);
-  m.faces[2].vertexNormalPairs[0].vertex = 6;
-  m.faces[2].vertexNormalPairs[1].vertex = 2;
-  m.faces[2].vertexNormalPairs[2].vertex = 7;
-  m.faces[3].init(3);
-  m.faces[3].vertexNormalPairs[0].vertex = 7;
-  m.faces[3].vertexNormalPairs[1].vertex = 2;
-  m.faces[3].vertexNormalPairs[2].vertex = 3;
-
-  m.faces[4].init(3);
-  m.faces[4].vertexNormalPairs[0].vertex = 2;
-  m.faces[4].vertexNormalPairs[1].vertex = 0;
-  m.faces[4].vertexNormalPairs[2].vertex = 3;
-  m.faces[5].init(3);
-  m.faces[5].vertexNormalPairs[0].vertex = 3;
-  m.faces[5].vertexNormalPairs[1].vertex = 0;
-  m.faces[5].vertexNormalPairs[2].vertex = 1;
-
-  m.faces[6].init(3);
-  m.faces[6].vertexNormalPairs[0].vertex = 0;
-  m.faces[6].vertexNormalPairs[1].vertex = 4;
-  m.faces[6].vertexNormalPairs[2].vertex = 1;
-  m.faces[7].init(3);
-  m.faces[7].vertexNormalPairs[0].vertex = 1;
-  m.faces[7].vertexNormalPairs[1].vertex = 4;
-  m.faces[7].vertexNormalPairs[2].vertex = 5;
-
-  m.faces[8].init(3);
-  m.faces[8].vertexNormalPairs[0].vertex = 7;
-  m.faces[8].vertexNormalPairs[1].vertex = 3;
-  m.faces[8].vertexNormalPairs[2].vertex = 5;
-  m.faces[9].init(3);
-  m.faces[9].vertexNormalPairs[0].vertex = 5;
-  m.faces[9].vertexNormalPairs[1].vertex = 3;
-  m.faces[9].vertexNormalPairs[2].vertex = 1;
-
-  m.faces[10].init(3);
-  m.faces[10].vertexNormalPairs[0].vertex = 4;
-  m.faces[10].vertexNormalPairs[1].vertex = 0;
-  m.faces[10].vertexNormalPairs[2].vertex = 6;
-  m.faces[11].init(3);
-  m.faces[11].vertexNormalPairs[0].vertex = 6;
-  m.faces[11].vertexNormalPairs[1].vertex = 0;
-  m.faces[11].vertexNormalPairs[2].vertex = 2;
-
-  m.computeNormals();
-  m.compile(shader);
 }
