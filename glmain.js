@@ -447,43 +447,55 @@ function Camera() {
   }
 
   self.translate = function(tx, ty, tz) {
-    mat4.translate(mv.matrix, [tx, ty, tz]);
+    var m = mat4.create();
+    mat4.identity(m);
+    mat4.translate(m, [tx, ty, tz]);
+    mat4.multiply(m, mv.matrix, mv.matrix);
 
     return self;
   }
 
   self.translateX = function(tx) {
-    mat4.translate(tx, ty, tz);
+    self.translate(tx, ty, tz);
 
     return self;
   }
 
   self.translateX = function(ty) {
-    mat4.translate(tx, ty, tz);
+    self.translate(tx, ty, tz);
 
     return self;
   }
 
   self.translateZ = function(tz) {
-    mat4.translate(tx, ty, tz);
+    self.translate(tx, ty, tz);
 
     return self;
   }
 
   self.pitch = function(alpha) {
-    mat4.rotate(mv.matrix, alpha, [1, 0, 0]);
+    var m = mat4.create();
+    mat4.identity(m);
+    mat4.rotateX(m, alpha);
+    mat4.multiply(m, mv.matrix, mv.matrix);
 
     return self;
   }
 
   self.yaw = function(alpha) {
-    mat4.rotate(mv.matrix, alpha, [0, 1, 0]);
+    var m = mat4.create();
+    mat4.identity(m);
+    mat4.rotateY(m, alpha);
+    mat4.multiply(m, mv.matrix, mv.matrix);
 
     return self;
   }
 
   self.roll = function(alpha) {
-    mat4.rotate(mv.matrix, alpha, [0, 0, 1]);
+    var m = mat4.create();
+    mat4.identity(m);
+    mat4.rotateZ(m, alpha);
+    mat4.multiply(m, mv.matrix, mv.matrix);
 
     return self;
   }
@@ -752,8 +764,6 @@ function Level() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     mv.pushMatrix();
-      self.camera.translate(-1.5, 0, -7.0);
-
       shaderProgram.bind();
       gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
       gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
@@ -897,8 +907,6 @@ function Player() {
     if (self.game.input.keyCheck(40)) {  // down
       pitch -= 0.01;
     }
-
-    // mat4.translate(self.transform, [x, 0, y]);
 
     mat4.rotate(self.transform, yaw, [0, 1, 0]);
     mat4.rotate(self.transform, pitch, [1, 0, 0]);
