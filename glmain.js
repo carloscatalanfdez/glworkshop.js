@@ -416,10 +416,8 @@ function Camera() {
 
   /**
    * Stablishes this object as the current MVP matrix wrapper
-   * After this call, accessing self.mvMatrix will have the same
-   * effect as accessing mv.matrix (same with self.pMatrix and p.matrix)
    */
-  self.init = function() {
+  self.init = function(target) {
 
     // TODO: set these
     // self.eye = quat4.create([10, 10, 10, 1]);
@@ -438,19 +436,35 @@ function Camera() {
 
     // mat4.frustum(vv.xL, vv.xR, vv.yT, vv.yB, vv.N, vv.F, p.matrix); // TODO: make this work
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, self.pMatrix);
-    mat4.identity(self.mvMatrix);
+    
+    if (target) {
+      self.mvMatrix = target;
+    } else {
+      mat4.identity(self.mvMatrix);
+    }
 
+    return self;
+  }
+
+  /* After this call, accessing self.mvMatrix will have the same
+   * effect as accessing mv.matrix (same with self.pMatrix and p.matrix)
+   */
+  self.activate = function() {
     mv.resetWithMatrix(self.mvMatrix);
     p.resetWithMatrix(self.pMatrix);
 
     return self;
   }
 
+  self.isActive = function() {
+    return mv.matrix == self.mvMatrix;
+  }
+
   self.translate = function(tx, ty, tz) {
     var m = mat4.create();
     mat4.identity(m);
     mat4.translate(m, [tx, ty, tz]);
-    mat4.multiply(m, mv.matrix, mv.matrix);
+    mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
     return self;
   }
@@ -461,7 +475,7 @@ function Camera() {
     return self;
   }
 
-  self.translateX = function(ty) {
+  self.translateY = function(ty) {
     self.translate(tx, ty, tz);
 
     return self;
@@ -477,7 +491,7 @@ function Camera() {
     var m = mat4.create();
     mat4.identity(m);
     mat4.rotateX(m, alpha);
-    mat4.multiply(m, mv.matrix, mv.matrix);
+    mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
     return self;
   }
@@ -486,7 +500,7 @@ function Camera() {
     var m = mat4.create();
     mat4.identity(m);
     mat4.rotateY(m, alpha);
-    mat4.multiply(m, mv.matrix, mv.matrix);
+    mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
     return self;
   }
@@ -495,7 +509,7 @@ function Camera() {
     var m = mat4.create();
     mat4.identity(m);
     mat4.rotateZ(m, alpha);
-    mat4.multiply(m, mv.matrix, mv.matrix);
+    mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
     return self;
   }
@@ -603,6 +617,7 @@ function Entity() {
   self.shader;
 
   self.camera;
+
   self.init = function(game, world) {
     self.game = game;
     self.world = world;
@@ -618,7 +633,17 @@ function Entity() {
 
   self.render = function() {
     mv.pushMatrix();
-      mat4.multiply(mv.matrix, self.transform, mv.matrix);
+      if (self.camera && self.camera.isActive()) {
+        // Well, I just so happen to be the camera
+        mat4.identity(mv.matrix);
+        // camera offset from target
+        mat4.translate(mv.matrix, [0,-1,-1]);
+      } else {
+        // mat4.translate(mv.matrix, [0, 0.5, -7]);
+
+
+        mat4.multiply(mv.matrix, self.transform, mv.matrix);
+      }
 
       if (self.mesh) {
         self.mesh.render();
@@ -670,12 +695,16 @@ function Level() {
   var self = object(new GameState());
 
   self.player = new Player();
+  self.levelCamera;
 
   self.init = function(game) {
     self.super.init(game);
 
-    self.camera.init();
-    
+    self.player.init(self.game, self);
+
+    self.camera.init().activate();
+    self.levelCamera = self.camera;
+
     // Shaders
     var shader = new Shader().init("shader.vs", "shader.fs").bind();
     shaderProgram = shader;
@@ -704,13 +733,11 @@ function Level() {
           ]);
         length += 4;
     }
-
-    console.log(length);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     triangleVertexPositionBuffer.itemSize = 6;
     triangleVertexPositionBuffer.numItems = length;
 
-    self.player.init(self.game, self);
+
     mat4.translate(self.player.transform, [0, 0.5, -7]);
 
     return self;
@@ -719,35 +746,42 @@ function Level() {
   self.update = function() {
     self.super.update();
 
-    var x = 0, y = 0;
-    if (self.game.input.keyCheck(87)) {  // w
-      y += 0.1;
-    }
-    if (self.game.input.keyCheck(65)) {  // a
-      x += 0.1;
-    }
-    if (self.game.input.keyCheck(83)) {  // s
-      y -= 0.1;
-    }
-    if (self.game.input.keyCheck(68)) {  // d
-      x -= 0.1;
+    if (self.levelCamera.isActive()) {
+      var x = 0, y = 0;
+      if (self.game.input.keyCheck(87)) {  // w
+        y += 0.1;
+      }
+      if (self.game.input.keyCheck(65)) {  // a
+        x += 0.1;
+      }
+      if (self.game.input.keyCheck(83)) {  // s
+        y -= 0.1;
+      }
+      if (self.game.input.keyCheck(68)) {  // d
+        x -= 0.1;
+      }
+
+      var yaw = 0, pitch = 0;
+      if (self.game.input.keyCheck(37)) {  // left
+        yaw -= 0.07;
+      }
+      if (self.game.input.keyCheck(38)) {  // up
+        pitch += 0.07;
+      }
+      if (self.game.input.keyCheck(39)) {  // right
+        yaw += 0.07;
+      }
+      if (self.game.input.keyCheck(40)) {  // down
+        pitch -= 0.07;
+      }
+
+      self.camera.translate(x, 0, y).yaw(yaw).pitch(pitch);
     }
 
-    var yaw = 0, pitch = 0;
-    if (self.game.input.keyCheck(37)) {  // left
-      yaw -= 0.07;
-    }
-    if (self.game.input.keyCheck(38)) {  // up
-      pitch += 0.07;
-    }
-    if (self.game.input.keyCheck(39)) {  // right
-      yaw += 0.07;
-    }
-    if (self.game.input.keyCheck(40)) {  // down
-      pitch -= 0.07;
+    if (self.game.input.keyPressed(80)) {  // p
+      toggleCamera();
     }
 
-    self.camera.translate(x, 0, y).yaw(yaw).pitch(pitch);
 
     self.player.update();
 
@@ -768,7 +802,6 @@ function Level() {
       gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
       gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
 
-
       gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
       gl.vertexAttribPointer(shaderProgram.attributes.vertexPosition, 3, gl.FLOAT, false, 6*4, 0);
       gl.vertexAttribPointer(shaderProgram.attributes.normalPosition, 3, gl.FLOAT, false, 6*4, 3*4);
@@ -787,11 +820,15 @@ function Level() {
   // Private
   var triangleVertexPositionBuffer;
 
-  var setMatrixUniforms = function() {
+  var toggleCamera = function() {
+    if (self.player.camera == self.camera) {
+      self.camera = self.levelCamera;
+    } else {
+      self.camera = self.player.camera;
+    }
+  
+    self.camera.activate();
   }
-
-  var x = 0;
-  var y = 0;
 
   return self;
 }
@@ -873,6 +910,7 @@ function Player() {
     m.computeNormals().compile(shader);
 
     self.super.mesh = m;
+    self.super.camera = new Camera().init(self.transform);
 
     return self;
   }
@@ -882,38 +920,48 @@ function Player() {
 
     var x = 0, y = 0;
     if (self.game.input.keyCheck(87)) {  // w
-      y -= 0.1;
-    }
-    if (self.game.input.keyCheck(65)) {  // a
-      x -= 0.1;
-    }
-    if (self.game.input.keyCheck(83)) {  // s
       y += 0.1;
     }
-    if (self.game.input.keyCheck(68)) {  // d
+    if (self.game.input.keyCheck(65)) {  // a
       x += 0.1;
+    }
+    if (self.game.input.keyCheck(83)) {  // s
+      y -= 0.1;
+    }
+    if (self.game.input.keyCheck(68)) {  // d
+      x -= 0.1;
     }
 
     var yaw = 0, pitch = 0;
     if (self.game.input.keyCheck(37)) {  // left
-      yaw -= 0.01;
+      yaw -= 0.07;
     }
     if (self.game.input.keyCheck(38)) {  // up
-      pitch += 0.01;
+      pitch += 0.07;
     }
     if (self.game.input.keyCheck(39)) {  // right
-      yaw += 0.01;
+      yaw += 0.07;
     }
     if (self.game.input.keyCheck(40)) {  // down
-      pitch -= 0.01;
+      pitch -= 0.07;
     }
+    var idlation = 0.03*Math.sin(0.1*i);
+    i++;
 
-    mat4.rotate(self.transform, yaw, [0, 1, 0]);
-    mat4.rotate(self.transform, pitch, [1, 0, 0]);
+    if (self.camera.isActive()) {
+      self.camera.translate(x, -idlation, -y).yaw(yaw).pitch(-pitch);
+    } else {
+      mat4.translate(self.transform, [-x, idlation, -y]);
+      mat4.rotate(self.transform, -yaw, [0, 1, 0]);
+      mat4.rotate(self.transform, pitch, [1, 0, 0]);
+    }
 
     return self;
   }
 
+
+  // Private
+  var i = 0;
 
   return self;
 }
