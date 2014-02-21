@@ -170,10 +170,14 @@ function Shader() {
     
     self.attributes = getDefaultAttributes(self.program);
     self.uniforms = getDefaultUniforms(self.program);
+
+    return self;
   }
 
   self.bind = function() {
     gl.useProgram(self.program);
+
+    return self;
   }
 
   // Private declarations
@@ -223,6 +227,8 @@ function Input() {
       }
     }
     nDirtyKeys = nextNumDirtyKeys;
+
+    return self;
   }
 
   self.keyCheck = function(keyCode) {
@@ -320,6 +326,8 @@ function Mesh() {
     self.vertexPool = generateArrayWithInitializer(nvertex, function() { return quat4.create() });
     self.normalPool = generateArrayWithInitializer(nnormals, function() { return quat4.create() });
     self.faces = generateArrayWithInitializer(nnormals, function() { return new Face(); });
+
+    return self;
   }
 
   self.computeNormals = function() {
@@ -330,6 +338,7 @@ function Mesh() {
       }
     }
 
+    return self;
   }
 
   self.compile = function(shader) {
@@ -362,6 +371,8 @@ function Mesh() {
     self.compiledVertexBuffer.numItems = compiledVertexCount;
 
     self.shader = shader;
+
+    return self;
   }
 
   self.render = function() {
@@ -383,6 +394,8 @@ function Mesh() {
       gl.drawArrays(gl.TRIANGLES, 0, self.compiledVertexBuffer.numItems);
       
     }
+
+    return self;
   }
 
   return self;
@@ -429,38 +442,55 @@ function Camera() {
 
     mv.resetWithMatrix(self.mvMatrix);
     p.resetWithMatrix(self.pMatrix);
+
+    return self;
   }
 
   self.translate = function(tx, ty, tz) {
     mat4.translate(mv.matrix, [tx, ty, tz]);
+
+    return self;
   }
 
   self.translateX = function(tx) {
-    self.translate(tx, ty, tz);
+    mat4.translate(tx, ty, tz);
+
+    return self;
   }
 
   self.translateX = function(ty) {
-    self.translate(tx, ty, tz);
+    mat4.translate(tx, ty, tz);
+
+    return self;
   }
 
   self.translateZ = function(tz) {
-    self.translate(tx, ty, tz);
+    mat4.translate(tx, ty, tz);
+
+    return self;
   }
 
   self.pitch = function(alpha) {
-    self.rotate(mv.matrix, alpha, [1, 0, 0]);
+    mat4.rotate(mv.matrix, alpha, [1, 0, 0]);
+
+    return self;
   }
 
   self.yaw = function(alpha) {
-    self.rotate(mv.matrix, alpha, [0, 1, 0]);
+    mat4.rotate(mv.matrix, alpha, [0, 1, 0]);
+
+    return self;
   }
 
   self.roll = function(alpha) {
-    self.rotate(mv.matrix, alpha, [0, 0, 1]);
+    mat4.rotate(mv.matrix, alpha, [0, 0, 1]);
+
+    return self;
   }
 
   self.orbitate = function() {
     // TODO
+    return self;
   }
 
   return self;
@@ -484,6 +514,8 @@ function Game() {
   self.initSettings = function() {
     self.width = 640;
     self.height = 480;
+
+    return self;
   }
     
   self.init = function(canvas) {
@@ -493,24 +525,34 @@ function Game() {
     WebGl.init();
     self.input = WebGl.input;
 
+    return self;
+
   }
 
   self.update = function() {
     self.input.update();
     self.world.update();
+
+    return self;
   }
 
   self.render = function() {
     self.world.render();
+
+    return self;
   }
 
   self.changeWorld = function(world) {
     world.init(self);
     self.world = world;
+
+    return self;
   }
 
   self.run = function() {
     WebGl.run();
+
+    return self;
   }
 
   return self;
@@ -524,12 +566,16 @@ function GameState() {
   self.init = function(game) {
     self.game = game;
     self.camera = new Camera();
+
+    return self;
   }
 
   self.update = function() {
+    return self;
   }
 
   self.render = function() {
+    return self;
   }
 
   return self;
@@ -550,20 +596,25 @@ function Entity() {
     self.world = world;
     self.transform = mat4.create();
     mat4.identity(self.transform);
+
+    return self;
   }
 
   self.update = function() {
+    return self;
   }
 
   self.render = function() {
     mv.pushMatrix();
-      mv.matrix.set(self.transform);
+      mat4.multiply(mv.matrix, self.transform, mv.matrix);
 
       if (self.mesh) {
         self.mesh.render();
       }
 
-    mv.popMatrix();    
+    mv.popMatrix();
+
+    return self;
   }
 
   return self;
@@ -582,16 +633,22 @@ function GameApp() {
   self.initSettings = function() {
     self.width = 640;
     self.height = 480;
+
+    return self;
   }
 
   self.init = function() {
     self.super.init();
 
     self.changeWorld(new Level());
+
+    return self;
   }
 
   self.update = function() {
     self.super.update();
+
+    return self;
   }
 
   return self;
@@ -608,9 +665,7 @@ function Level() {
     self.camera.init();
     
     // Shaders
-    var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
-    shader.bind();
+    var shader = new Shader().init("shader.vs", "shader.fs").bind();
     shaderProgram = shader;
 
     gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
@@ -619,36 +674,72 @@ function Level() {
     // // Buffers
     triangleVertexPositionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
-    var vertices = [
-       0.0,  1.0,  0.0, 0.0, 0.0, 0.0,
-      -1.0, -1.0,  0.0, 0.0, 0.0, 0.0,
-       1.0, -1.0,  0.0, 0.0, 0.0, 0.0
-    ];
+    
+    // Grid
+    var vertices = [];
+    var length = 0;
+    var w = 0.01;
+    var step = 0.4;
+    for (var ix = -20; ix < 20; ix += step) {
+        vertices = vertices.concat([
+          ix + w, -1.0, 10.0, 0.0, 0.0, 0.0,
+          ix, -1.0,  10.0, 0.0, 0.0, 0.0,
+          ix + w, -1.0, -10.0, 0.0, 0.0, 0.0,
+          
+          ix + w, -1.0, -10.0, 0.0, 0.0, 0.0,
+          ix, -1.0, -10.0, 0.0, 0.0, 0.0,
+          ix, -1.0,  10.0, 0.0, 0.0, 0.0
+          ]);
+        length += 4;
+    }
+
+    console.log(length);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     triangleVertexPositionBuffer.itemSize = 6;
-    triangleVertexPositionBuffer.numItems = 3;
+    triangleVertexPositionBuffer.numItems = length;
 
     self.player.init(self.game, self);
     mat4.translate(self.player.transform, [0, 0.5, -7]);
+
+    return self;
   }
 
   self.update = function() {
     self.super.update();
 
+    var x = 0, y = 0;
     if (self.game.input.keyCheck(87)) {  // w
       y += 0.1;
     }
     if (self.game.input.keyCheck(65)) {  // a
-      x -= 0.1;
+      x += 0.1;
     }
     if (self.game.input.keyCheck(83)) {  // s
       y -= 0.1;
     }
     if (self.game.input.keyCheck(68)) {  // d
-      x += 0.1;
+      x -= 0.1;
     }
 
+    var yaw = 0, pitch = 0;
+    if (self.game.input.keyCheck(37)) {  // left
+      yaw -= 0.07;
+    }
+    if (self.game.input.keyCheck(38)) {  // up
+      pitch += 0.07;
+    }
+    if (self.game.input.keyCheck(39)) {  // right
+      yaw += 0.07;
+    }
+    if (self.game.input.keyCheck(40)) {  // down
+      pitch -= 0.07;
+    }
+
+    self.camera.translate(x, 0, y).yaw(yaw).pitch(pitch);
+
     self.player.update();
+
+    return self;
   }
 
   self.render = function() {
@@ -661,7 +752,7 @@ function Level() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     mv.pushMatrix();
-      self.camera.translate(-1.5 + x, 0, -7.0);
+      self.camera.translate(-1.5, 0, -7.0);
 
       shaderProgram.bind();
       gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
@@ -679,6 +770,8 @@ function Level() {
     mv.popMatrix();
     
     self.player.render();
+
+    return self;
   }
 
   // Private
@@ -703,8 +796,7 @@ function Player() {
     shader.init("shader.vs", "shader.fs");
 
     // Create mesh (cube)
-    var m = new Mesh();
-    m.init(8, 12);
+    var m = new Mesh().init(8, 12);
     m.vertexPool[0] = quat4.create([-0.5, -0.5, -0.5, 1]);
     m.vertexPool[1] = quat4.create([-0.5, -0.5, 0.5, 1]);
     m.vertexPool[2] = quat4.create([-0.5, 0.5, -0.5, 1]);
@@ -768,10 +860,11 @@ function Player() {
     m.faces[11].vertexNormalPairs[1].vertex = 0;
     m.faces[11].vertexNormalPairs[2].vertex = 2;
 
-    m.computeNormals();
-    m.compile(shader);
+    m.computeNormals().compile(shader);
 
     self.super.mesh = m;
+
+    return self;
   }
 
   self.update = function() {
@@ -793,22 +886,24 @@ function Player() {
 
     var yaw = 0, pitch = 0;
     if (self.game.input.keyCheck(37)) {  // left
-      yaw -= 0.1;
+      yaw -= 0.01;
     }
     if (self.game.input.keyCheck(38)) {  // up
-      pitch += 0.1;
+      pitch += 0.01;
     }
     if (self.game.input.keyCheck(39)) {  // right
-      pitch -= 0.1;
+      yaw += 0.01;
     }
     if (self.game.input.keyCheck(40)) {  // down
-      yaw -= 0.1;
+      pitch -= 0.01;
     }
 
-    mat4.translate(self.transform, [x, 0, y]);
+    // mat4.translate(self.transform, [x, 0, y]);
 
     mat4.rotate(self.transform, yaw, [0, 1, 0]);
     mat4.rotate(self.transform, pitch, [1, 0, 0]);
+
+    return self;
   }
 
 
@@ -824,7 +919,5 @@ function Player() {
 function main() {
     var canvas = document.getElementById("canvas");
 
-    game = new GameApp();
-    game.init(canvas);
-    game.run();
+    game = new GameApp().init(canvas).run();
 }
