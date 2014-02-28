@@ -123,7 +123,14 @@ var p = {
   matrix: mat4.create(),
   resetWithMatrix: function(m) {
     p.matrix = m;
-  }
+ }
+}
+
+/**
+ * Lights
+ */
+var lights = {
+  l: []
 }
 
 function Shader() {
@@ -177,6 +184,18 @@ function Shader() {
   self.bind = function() {
     gl.useProgram(self.program);
 
+    // MVP matrices
+    gl.uniformMatrix4fv(self.uniforms.pMatrix, false, p.matrix);
+    gl.uniformMatrix4fv(self.uniforms.mvMatrix, false, mv.matrix);
+    var mvpMatrix = mat4.multiply(p.matrix, mv.matrix, mat4.create());
+    gl.uniformMatrix4fv(self.uniforms.mvpMatrix, false, mvpMatrix);
+    gl.uniformMatrix4fv(self.uniforms.normalMatrix, false, mat4.transpose(mat4.inverse(mv.matrix, mat4.create()), mat4.create()));//mvp.normalMatrix);
+
+    // Lights
+    for (var i = 0; i < lights.l.length; i++) {
+      gl.uniform3fv(self.uniforms["lightPos" + i], mat4.multiplyVec3(mvpMatrix, lights.l[i], vec3.create()));
+    }
+
     return self;
   }
 
@@ -189,10 +208,18 @@ function Shader() {
   }
 
   var getDefaultUniforms = function(program) {
-    return {
+    var uniforms = {
       pMatrix: gl.getUniformLocation(program, "uPMatrix"),
-      mvMatrix: gl.getUniformLocation(program, "uMVMatrix")  
+      mvMatrix: gl.getUniformLocation(program, "uMVMatrix"), 
+      mvpMatrix: gl.getUniformLocation(program, "uMVPMatrix"),
+      normalMatrix: gl.getUniformLocation(program, "uNormalMatrix")
     }
+
+    for (var i = 0; i < lights.l.length; i++) {
+      uniforms["lightPos" + i] = gl.getUniformLocation(self.program, "uLightPos" + i);
+    }
+
+    return uniforms;
   }
 
   return self;
@@ -386,11 +413,6 @@ function Mesh() {
       gl.vertexAttribPointer(self.shader.attributes.vertexPosition, 3, gl.FLOAT, false, 6 * 4, 0);
       gl.vertexAttribPointer(self.shader.attributes.normalPosition, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
 
-      // Scene uniforms
-      gl.uniformMatrix4fv(self.shader.uniforms.pMatrix, false, p.matrix);
-      gl.uniformMatrix4fv(self.shader.uniforms.mvMatrix, false, mv.matrix);
-
-
       gl.drawArrays(gl.TRIANGLES, 0, self.compiledVertexBuffer.numItems);
       
     }
@@ -414,6 +436,11 @@ function Camera() {
   self.pMatrix = mat4.create();
   self.viewVolume = {};
 
+  self.pitchAngle;
+  self.yawAngle;
+  self.rollAngle;
+  self.pos;
+
   /**
    * Stablishes this object as the current MVP matrix wrapper
    */
@@ -425,6 +452,9 @@ function Camera() {
     // self.lookAt = quat4.create(eye.sub(target));
     // self.focalLength = self.lookAt.module();
     // self.lookAt.normalize();
+    
+    self.pitchAngle = self.yawAngle = self.rollAngle = 0;
+    self.pos = vec3.create();
 
     self.viewVolume.N = 2;
     self.viewVolume.F = 10000;
@@ -452,8 +482,6 @@ function Camera() {
     mv.resetWithMatrix(self.mvMatrix);
     p.resetWithMatrix(self.pMatrix);
 
-
-    // mat4.identity(self.mvMatrix);
     return self;
   }
 
@@ -461,29 +489,31 @@ function Camera() {
     return mv.matrix == self.mvMatrix;
   }
 
-  self.translate = function(tx, ty, tz) {
+  self.translate = function(t) {
     var m = mat4.create();
     mat4.identity(m);
-    mat4.translate(m, [tx, ty, tz]);
+    mat4.translate(m, t);
     mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
+    vec3.add(self.pos, t);
+    
     return self;
   }
 
   self.translateX = function(tx) {
-    self.translate(tx, ty, tz);
+    self.translate([tx, 0, 0]);
 
     return self;
   }
 
   self.translateY = function(ty) {
-    self.translate(tx, ty, tz);
+    self.translate([0, ty, 0]);
 
     return self;
   }
 
   self.translateZ = function(tz) {
-    self.translate(tx, ty, tz);
+    self.translate([0, 0, tz]);
 
     return self;
   }
@@ -494,6 +524,8 @@ function Camera() {
     mat4.rotateX(m, alpha);
     mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
+    self.pitchAngle += alpha;
+    
     return self;
   }
 
@@ -503,6 +535,22 @@ function Camera() {
     mat4.rotateY(m, alpha);
     mat4.multiply(m, self.mvMatrix, self.mvMatrix);
 
+    self.yawAngle += alpha;
+
+    return self;
+  }
+
+  self.poleYaw = function(alpha) {
+    var m = mat4.create();
+    mat4.identity(m);
+    mat4.rotateX(m, self.pitchAngle);
+    mat4.rotateY(m, alpha);
+    mat4.rotateX(m, -self.pitchAngle);
+    mat4.multiply(m, self.mvMatrix, self.mvMatrix);
+
+    // uh?
+    self.yawAngle += alpha;
+
     return self;
   }
 
@@ -511,6 +559,8 @@ function Camera() {
     mat4.identity(m);
     mat4.rotateZ(m, alpha);
     mat4.multiply(m, self.mvMatrix, self.mvMatrix);
+
+    self.rollAngle += alpha;
 
     return self;
   }
@@ -526,10 +576,16 @@ function Camera() {
     return self;
   }
 
+  self.lockOff = function() {
+    self.target = null;
+
+    return self;
+  }
+
   self.commit = function() {
     if (self.target) {
       mat4.inverse(self.target, self.mvMatrix);
-      self.translate(0, -5, -5);
+      self.translate([0, -5, -5]);
       self.pitch(Math.PI / 4);
     } else {
       // nothing to do here, really
@@ -776,14 +832,21 @@ function Level() {
   self.levelCamera;
   self.playerCamera;
 
+  self.lightPos;
+
   self.init = function(game) {
     self.super.init(game);
 
-    self.player.init(self.game, self);
-
+    // Camera setup
     self.playerCamera = new Camera().init();
-    self.camera.init().translate(0, -4, -10).pitch(0.3).activate();
+    self.camera.init().translate([0, -4, -10]).pitch(0.3).activate();
     self.levelCamera = self.camera;
+
+    // Scene setup
+    lights.l[0] = vec3.create([0.0, 10.0, 2.0]);
+
+    // Entities setup
+    self.player.init(self.game, self);
 
     // Shaders
     var shader = new Shader().init("shader.vs", "shader.fs").bind();
@@ -798,27 +861,21 @@ function Level() {
     
     // Grid
     var vertices = [];
-    var length = 0;
-    var w = 0.01;
-    var step = 0.4;
-    for (var ix = -20; ix < 20; ix += step) {
-        vertices = vertices.concat([
-          ix + w, -1.0, 10.0, 0.0, 0.0, 0.0,
-          ix, -1.0,  10.0, 0.0, 0.0, 0.0,
-          ix + w, -1.0, -10.0, 0.0, 0.0, 0.0,
-          
-          ix + w, -1.0, -10.0, 0.0, 0.0, 0.0,
-          ix, -1.0, -10.0, 0.0, 0.0, 0.0,
-          ix, -1.0,  10.0, 0.0, 0.0, 0.0
-          ]);
-        length += 4;
-    }
+    var w = 1.01;
+    var step = 2.4;
+    vertices = [
+      -10, 0, -10, 0, 1, 0,
+      10, 0, -10, 0, 1, 0,
+      -10, 0, 10, 0, 1, 0,
+      10, 0, -10, 0, 1, 0,
+      -10, 0, 10, 0, 1, 0,
+      10, 0, 10, 0, 1, 0
+    ];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     triangleVertexPositionBuffer.itemSize = 6;
-    triangleVertexPositionBuffer.numItems = length;
+    triangleVertexPositionBuffer.numItems = vertices.length / 6;
 
-
-    // mat4.translate(self.player.transform, [0, 0.5, -7]);
+    // mat4.translate(self.player.transform, [0, 0.5, 7]);
     // mat4.rotateY(self.player.transform, Math.PI / 2);
 
     return self;
@@ -856,7 +913,7 @@ function Level() {
         pitch -= 0.07;
       }
 
-      self.camera.translate(x, 0, y).yaw(yaw).pitch(-pitch);
+      self.camera.translate([x, 0, y]).poleYaw(yaw).pitch(-pitch);
     }
 
     if (self.game.input.keyPressed(80)) {  // p
@@ -885,9 +942,6 @@ function Level() {
       gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
       gl.vertexAttribPointer(shaderProgram.attributes.vertexPosition, 3, gl.FLOAT, false, 6*4, 0);
       gl.vertexAttribPointer(shaderProgram.attributes.normalPosition, 3, gl.FLOAT, false, 6*4, 3*4);
-
-      gl.uniformMatrix4fv(shaderProgram.uniforms.pMatrix, false, p.matrix);
-      gl.uniformMatrix4fv(shaderProgram.uniforms.mvMatrix, false, mv.matrix);
 
       gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
     mv.popMatrix();
