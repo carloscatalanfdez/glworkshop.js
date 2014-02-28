@@ -577,11 +577,6 @@ function Camera() {
     return self;
   }
 
-  self.orbitate = function() {
-    // TODO
-    return self;
-  }
-
   self.lockOn = function(transform) {
     self.target = transform;
 
