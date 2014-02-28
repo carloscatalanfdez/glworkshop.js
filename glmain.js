@@ -139,6 +139,7 @@ function Shader() {
   self.program;
   self.attributes = {};
   self.uniforms = {};
+  self.color;
 
   self.init = function(vertPathName, fragPathName) {
     var shadersData = {
@@ -187,14 +188,20 @@ function Shader() {
     // MVP matrices
     gl.uniformMatrix4fv(self.uniforms.pMatrix, false, p.matrix);
     gl.uniformMatrix4fv(self.uniforms.mvMatrix, false, mv.matrix);
-    var mvpMatrix = mat4.multiply(p.matrix, mv.matrix, mat4.create());
-    gl.uniformMatrix4fv(self.uniforms.mvpMatrix, false, mvpMatrix);
-    gl.uniformMatrix4fv(self.uniforms.normalMatrix, false, mat4.transpose(mat4.inverse(mv.matrix, mat4.create()), mat4.create()));//mvp.normalMatrix);
+    gl.uniformMatrix4fv(self.uniforms.mvpMatrix, false, mat4.multiply(p.matrix, mv.matrix, mat4.create()));
+    gl.uniformMatrix4fv(self.uniforms.normalMatrix, false, mat4.transpose(mat4.inverse(mv.matrix, mat4.create())));
 
     // Lights
     for (var i = 0; i < lights.l.length; i++) {
-      gl.uniform3fv(self.uniforms["lightPos" + i], mat4.multiplyVec3(mvpMatrix, lights.l[i], vec3.create()));
+      gl.uniform3fv(self.uniforms["lightPos" + i], mat4.multiplyVec3(mv.matrix, lights.l[i].pos, vec3.create()));
+      gl.uniform3fv(self.uniforms["lightColor" + i], lights.l[i].color);
     }
+
+    // Color
+    if (!self.color) {
+      self.color = vec3.create([0.598, 0.63, 0.6]);
+    }
+    gl.uniform3fv(self.uniforms.color, self.color);
 
     return self;
   }
@@ -208,6 +215,7 @@ function Shader() {
   }
 
   var getDefaultUniforms = function(program) {
+    // Scene
     var uniforms = {
       pMatrix: gl.getUniformLocation(program, "uPMatrix"),
       mvMatrix: gl.getUniformLocation(program, "uMVMatrix"), 
@@ -215,9 +223,13 @@ function Shader() {
       normalMatrix: gl.getUniformLocation(program, "uNormalMatrix")
     }
 
+    // Light
     for (var i = 0; i < lights.l.length; i++) {
       uniforms["lightPos" + i] = gl.getUniformLocation(self.program, "uLightPos" + i);
+      uniforms["lightColor" + i] = gl.getUniformLocation(self.program, "uLightColor" + i);
     }
+
+    uniforms.color = gl.getUniformLocation(program, "uColor");
 
     return uniforms;
   }
@@ -843,7 +855,10 @@ function Level() {
     self.levelCamera = self.camera;
 
     // Scene setup
-    lights.l[0] = vec3.create([0.0, 10.0, 2.0]);
+    lights.l[0] = {
+      pos: vec3.create([0.0, 20.0, 2.0]),
+      color: vec3.create([1.0, 1.0, 0.95])
+    }
 
     // Entities setup
     self.player.init(self.game, self);
@@ -860,10 +875,7 @@ function Level() {
     gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
     
     // Grid
-    var vertices = [];
-    var w = 1.01;
-    var step = 2.4;
-    vertices = [
+    var vertices = [
       -10, 0, -10, 0, 1, 0,
       10, 0, -10, 0, 1, 0,
       -10, 0, 10, 0, 1, 0,
@@ -875,8 +887,9 @@ function Level() {
     triangleVertexPositionBuffer.itemSize = 6;
     triangleVertexPositionBuffer.numItems = vertices.length / 6;
 
-    // mat4.translate(self.player.transform, [0, 0.5, 7]);
-    // mat4.rotateY(self.player.transform, Math.PI / 2);
+    mat4.translate(self.player.transform, [0, 0.5, 7]);
+    mat4.rotateY(self.player.transform, Math.PI / 2);
+
 
     return self;
   }
@@ -976,6 +989,7 @@ function Player() {
 
     var shader = new Shader();
     shader.init("shader.vs", "shader.fs");
+    shader.color = vec3.create([0.34, 0.32, 1.0]);
 
     // Create mesh (cube)
     var m = new Mesh().init(8, 12);
