@@ -60,7 +60,7 @@ var WebGl = {
   canvas: null,
   init: function() {
     try {
-      gl = canvas.getContext("experimental-webgl");
+      gl = canvas.getContext("experimental-webgl", { antialias:true });
       if (WebGl.game.width)
         canvas.width = WebGl.game.width;
       if (WebGl.game.height)
@@ -436,11 +436,10 @@ function Camera() {
 
     // mat4.frustum(vv.xL, vv.xR, vv.yT, vv.yB, vv.N, vv.F, p.matrix); // TODO: make this work
     mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, self.pMatrix);
+    mat4.identity(self.mvMatrix);
     
     if (target) {
-      self.mvMatrix = target;
-    } else {
-      mat4.identity(self.mvMatrix);
+      self.lockOn(target);
     }
 
     return self;
@@ -453,6 +452,8 @@ function Camera() {
     mv.resetWithMatrix(self.mvMatrix);
     p.resetWithMatrix(self.pMatrix);
 
+
+    // mat4.identity(self.mvMatrix);
     return self;
   }
 
@@ -516,6 +517,24 @@ function Camera() {
 
   self.orbitate = function() {
     // TODO
+    return self;
+  }
+
+  self.lockOn = function(transform) {
+    self.target = transform;
+
+    return self;
+  }
+
+  self.commit = function() {
+    if (self.target) {
+      mat4.inverse(self.target, self.mvMatrix);
+      self.translate(0, -5, -5);
+      self.pitch(Math.PI / 4);
+    } else {
+      // nothing to do here, really
+    }
+
     return self;
   }
 
@@ -601,6 +620,7 @@ function GameState() {
   }
 
   self.render = function() {
+    self.camera.commit();
     return self;
   }
 
@@ -616,13 +636,19 @@ function Entity() {
   self.mesh;
   self.shader;
 
-  self.camera;
+  self.pitchAngle;
+  self.yawAngle;
+  self.rollAngle;
+  self.pos;
 
   self.init = function(game, world) {
     self.game = game;
     self.world = world;
     self.transform = mat4.create();
     mat4.identity(self.transform);
+
+    self.pitchAngle = self.yawAngle = self.rollAngle = 0;
+    self.pos = vec3.create();
 
     return self;
   }
@@ -633,17 +659,7 @@ function Entity() {
 
   self.render = function() {
     mv.pushMatrix();
-      if (self.camera && self.camera.isActive()) {
-        // Well, I just so happen to be the camera
-        mat4.identity(mv.matrix);
-        // camera offset from target
-        mat4.translate(mv.matrix, [0,-1,-1]);
-      } else {
-        // mat4.translate(mv.matrix, [0, 0.5, -7]);
-
-
-        mat4.multiply(mv.matrix, self.transform, mv.matrix);
-      }
+      mat4.multiply(mv.matrix, self.transform, mv.matrix);
 
       if (self.mesh) {
         self.mesh.render();
@@ -653,6 +669,68 @@ function Entity() {
 
     return self;
   }
+
+  self.translate = function(t) {
+    mat4.translate(self.transform, t);
+    vec3.add(self.pos, t);
+
+    return self;
+  }
+
+  self.translateX = function(tx) {
+    self.translate([tx, 0, 0]);
+
+    return self;
+  }
+
+  self.translateY = function(ty) {
+    self.translate([0, ty, 0]);
+
+    return self;
+  }
+
+  self.translateZ = function(tz) {
+    self.translate([0, 0, tz]);
+
+    return self;
+  }
+
+  self.pitch = function(alpha) {
+    mat4.rotateX(self.transform, alpha);
+    self.pitchAngle += alpha;
+
+    return self;
+  }
+
+  self.poleYaw = function(alpha) {
+    mat4.rotateX(self.transform, -self.pitchAngle);
+    mat4.rotateY(self.transform, alpha);
+    mat4.rotateX(self.transform, self.pitchAngle);
+
+    // uh?
+    self.yawAngle += alpha;
+
+    return self;
+  }
+
+  self.yaw = function(alpha) {
+    mat4.rotateY(self.transform, alpha);
+    self.yawAngle += alpha;
+
+    return self;
+  }
+
+  self.roll = function(alpha) {
+    mat4.rotateZ(self.transform, alpha);
+    self.rollAngle += alpha;
+
+    return self;
+  }
+
+  self.orbitate = function() {
+    // TODO
+    return self;
+  }  
 
   return self;
 
@@ -696,13 +774,15 @@ function Level() {
 
   self.player = new Player();
   self.levelCamera;
+  self.playerCamera;
 
   self.init = function(game) {
     self.super.init(game);
 
     self.player.init(self.game, self);
 
-    self.camera.init().activate();
+    self.playerCamera = new Camera().init();
+    self.camera.init().translate(0, -4, -10).pitch(0.3).activate();
     self.levelCamera = self.camera;
 
     // Shaders
@@ -738,7 +818,8 @@ function Level() {
     triangleVertexPositionBuffer.numItems = length;
 
 
-    mat4.translate(self.player.transform, [0, 0.5, -7]);
+    // mat4.translate(self.player.transform, [0, 0.5, -7]);
+    // mat4.rotateY(self.player.transform, Math.PI / 2);
 
     return self;
   }
@@ -775,13 +856,12 @@ function Level() {
         pitch -= 0.07;
       }
 
-      self.camera.translate(x, 0, y).yaw(yaw).pitch(pitch);
+      self.camera.translate(x, 0, y).yaw(yaw).pitch(-pitch);
     }
 
     if (self.game.input.keyPressed(80)) {  // p
       toggleCamera();
     }
-
 
     self.player.update();
 
@@ -821,13 +901,14 @@ function Level() {
   var triangleVertexPositionBuffer;
 
   var toggleCamera = function() {
-    if (self.player.camera == self.camera) {
-      self.camera = self.levelCamera;
+    if (self.camera == self.levelCamera) {
+      self.playerCamera.lockOn(self.player.transform);
+      self.super.camera = self.playerCamera;
     } else {
-      self.camera = self.player.camera;
+      self.super.camera = self.levelCamera;
     }
   
-    self.camera.activate();
+    self.super.camera.activate();
   }
 
   return self;
@@ -910,7 +991,6 @@ function Player() {
     m.computeNormals().compile(shader);
 
     self.super.mesh = m;
-    self.super.camera = new Camera().init(self.transform);
 
     return self;
   }
@@ -919,42 +999,41 @@ function Player() {
     self.super.update();
 
     var x = 0, y = 0;
+    var tinc = 0.1;
     if (self.game.input.keyCheck(87)) {  // w
-      y += 0.1;
+      y -= tinc;
     }
     if (self.game.input.keyCheck(65)) {  // a
-      x += 0.1;
+      x -= tinc;
     }
     if (self.game.input.keyCheck(83)) {  // s
-      y -= 0.1;
+      y = tinc;
     }
     if (self.game.input.keyCheck(68)) {  // d
-      x -= 0.1;
+      x = tinc;
     }
 
     var yaw = 0, pitch = 0;
+    var rinc = 0.07;
     if (self.game.input.keyCheck(37)) {  // left
-      yaw -= 0.07;
+      yaw += rinc;
     }
     if (self.game.input.keyCheck(38)) {  // up
-      pitch += 0.07;
+      pitch -= rinc;
     }
     if (self.game.input.keyCheck(39)) {  // right
-      yaw += 0.07;
+      yaw -= rinc;
     }
     if (self.game.input.keyCheck(40)) {  // down
-      pitch -= 0.07;
+      pitch += rinc;
     }
-    var idlation = 0.03*Math.sin(0.1*i);
+    var idlation = 0.003*Math.sin(0.1*i);
     i++;
 
-    if (self.camera.isActive()) {
-      self.camera.translate(x, -idlation, -y).yaw(yaw).pitch(-pitch);
+    if (self.world.camera != self.world.levelCamera) {
+      self.poleYaw(yaw).pitch(-pitch).translate([x, idlation, y]);
     } else {
-      mat4.translate(self.transform, [-x, idlation, -y]);
-      mat4.rotate(self.transform, -yaw, [0, 1, 0]);
-      mat4.rotate(self.transform, pitch, [1, 0, 0]);
-    }
+    }      
 
     return self;
   }
