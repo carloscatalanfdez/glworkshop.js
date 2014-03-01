@@ -10,8 +10,8 @@ uniform mat4 uMVPMatrix;
 uniform mat4 uPMatrix;
 
 void main(void) {
-    vertexPosEye = uMVPMatrix * vec4(aVertexPosition, 1.0);
-    gl_Position = vertexPosEye;
+    gl_Position = uMVPMatrix * vec4(aVertexPosition, 1.0);
+    vertexPosEye = uMVMatrix * vec4(aVertexPosition, 1.0);
     
     normalEye = uNormalMatrix * vec4(aNormalPosition, 1.0);
 }

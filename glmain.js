@@ -93,7 +93,7 @@ var WebGl = {
 }
 
 /**
- * Global modelview matrix
+ * Modelview matrix
  */
 var mv = {
   matrixStack: [],
@@ -107,7 +107,6 @@ var mv = {
     if (mv.matrixStack.length == 0) {
       throw "Invalid popMatrix!";
     }
-    // mv.matrix = mv.matrixStack.pop();
     mat4.set(mv.matrixStack.pop(), mv.matrix);
   },
   resetWithMatrix: function(m) {
@@ -127,7 +126,18 @@ var p = {
 }
 
 /**
+ * Global context matrices
+ * To be updated everytime the camera is commited
+ */
+var global = {
+  mv: mv.matrix,
+  mvp: mat4.multiply(p.matrix, mv.matrix, mat4.create())
+}
+
+/**
  * Lights
+ *
+ * light.l[i] is { pos, color, (mvpPos) }
  */
 var lights = {
   l: []
@@ -193,7 +203,7 @@ function Shader() {
 
     // Lights
     for (var i = 0; i < lights.l.length; i++) {
-      gl.uniform3fv(self.uniforms["lightPos" + i], mat4.multiplyVec3(mv.matrix, lights.l[i].pos, vec3.create()));
+      gl.uniform3fv(self.uniforms["lightPos" + i], lights.l[i].mvPos);
       gl.uniform3fv(self.uniforms["lightColor" + i], lights.l[i].color);
     }
 
@@ -552,7 +562,7 @@ function Camera() {
     return self;
   }
 
-  self.poleYaw = function(alpha) {
+  self.poleyaw = function(alpha) {
     var m = mat4.create();
     mat4.identity(m);
     mat4.rotateX(m, self.pitchAngle);
@@ -596,6 +606,16 @@ function Camera() {
       self.pitch(Math.PI / 4);
     } else {
       // nothing to do here, really
+    }
+
+    // Compute global params
+    global.mv = mv.matrix;
+    global.mvp = mat4.multiply(p.matrix, mv.matrix, global.mvp);
+
+    // Lights
+    for (var i = 0; i < lights.l.length; i++) {
+      lights.l[i].mvPos = mat4.multiplyVec3(global.mv, lights.l[i].pos, vec3.create());
+      lights.l[i].mvpPos = mat4.multiplyVec3(global.mvp, lights.l[i].pos, vec3.create());
     }
 
     return self;
@@ -765,7 +785,7 @@ function Entity() {
     return self;
   }
 
-  self.poleYaw = function(alpha) {
+  self.poleyaw = function(alpha) {
     mat4.rotateX(self.transform, -self.pitchAngle);
     mat4.rotateY(self.transform, alpha);
     mat4.rotateX(self.transform, self.pitchAngle);
@@ -846,12 +866,12 @@ function Level() {
 
     // Camera setup
     self.playerCamera = new Camera().init();
-    self.camera.init().translate([0, -4, -10]).pitch(0.3).activate();
+    self.camera.init().translate([-10, -10, -10]).pitch(Math.PI / 4).poleyaw(-Math.PI / 4).activate();
     self.levelCamera = self.camera;
 
     // Scene setup
     lights.l[0] = {
-      pos: vec3.create([0.0, 20.0, 2.0]),
+      pos: vec3.create([0.0, 5.0, 0.0]),
       color: vec3.create([1.0, 1.0, 0.95])
     }
 
@@ -859,8 +879,10 @@ function Level() {
     self.player.init(self.game, self);
 
     // Shaders
-    var shader = new Shader().init("shader.vs", "shader.fs").bind();
+    var shader = new Shader().init("shader.vs", "shader.fs");
     shaderProgram = shader;
+
+    gl.useProgram(shaderProgram.program);
 
     gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
     gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
@@ -871,19 +893,19 @@ function Level() {
     
     // Grid
     var vertices = [
-      -10, 0, -10, 0, 1, 0,
-      10, 0, -10, 0, 1, 0,
-      -10, 0, 10, 0, 1, 0,
-      10, 0, -10, 0, 1, 0,
-      -10, 0, 10, 0, 1, 0,
-      10, 0, 10, 0, 1, 0
+      -20, -5, -20, 0, 1, 0,
+      20, -5, -20, 0, 1, 0,
+      -20, -5, 20, 0, 1, 0,
+      20, -5, -20, 0, 1, 0,
+      -20, -5, 20, 0, 1, 0,
+      20, -5, 20, 0, 1, 0
     ];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     triangleVertexPositionBuffer.itemSize = 6;
     triangleVertexPositionBuffer.numItems = vertices.length / 6;
 
-    mat4.translate(self.player.transform, [0, 0.5, 7]);
-    mat4.rotateY(self.player.transform, Math.PI / 2);
+    // mat4.translate(self.player.transform, [0, 4, 2]);
+    // mat4.rotateY(self.player.transform, Math.PI / 2);
 
 
     return self;
@@ -921,7 +943,7 @@ function Level() {
         pitch -= 0.07;
       }
 
-      self.camera.translate([x, 0, y]).poleYaw(yaw).pitch(-pitch);
+      self.camera.translate([x, 0, y]).poleyaw(yaw).pitch(-pitch);
     }
 
     if (self.game.input.keyPressed(80)) {  // p
@@ -1094,8 +1116,9 @@ function Player() {
     i++;
 
     if (self.world.camera != self.world.levelCamera) {
-      self.poleYaw(yaw).pitch(-pitch).translate([x, idlation, y]);
+      self.poleyaw(yaw).pitch(-pitch).translate([x, idlation, y]);
     } else {
+      self.translate([0, idlation, 0]);
     }      
 
     return self;

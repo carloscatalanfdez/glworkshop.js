@@ -10,8 +10,6 @@ uniform vec3 uColor;
 
 void main(void) {
     vec3 N = normalize(normalEye.xyz);
-    //vec3 L = normalize(gl_LightSource[0].position.xyz - vertexPosEye.xyz);
-    vec3 lightSource = vec3(0.0, 10.0, 3.0);
     vec3 L = normalize(uLightPos0 - vertexPosEye.xyz);
     float diffuse = max(0.0, dot(N, L));
     vec3 shadow = uLightColor0;
