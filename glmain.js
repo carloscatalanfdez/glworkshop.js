@@ -220,7 +220,8 @@ function Shader() {
   var getDefaultAttributes = function(program) {
     return {
       vertexPosition: gl.getAttribLocation(program, "aVertexPosition"),
-      normalPosition: gl.getAttribLocation(program, "aNormalPosition")
+      normalPosition: gl.getAttribLocation(program, "aNormalPosition"),
+      texCoord: gl.getAttribLocation(program, "aTexCoord")
     }
   }
 
@@ -437,6 +438,8 @@ function Mesh() {
 
       gl.drawArrays(gl.TRIANGLES, 0, self.compiledVertexBuffer.numItems);
       
+      gl.disableVertexAttribArray(self.shader.attributes.vertexPosition);
+      gl.disableVertexAttribArray(self.shader.attributes.normalPosition);
     }
 
     return self;
@@ -879,34 +882,43 @@ function Level() {
     self.player.init(self.game, self);
 
     // Shaders
-    var shader = new Shader().init("shader.vs", "shader.fs");
+    var shader = new Shader().init("shaderTexture.vs", "shaderTexture.fs");
     shaderProgram = shader;
-
-    gl.useProgram(shaderProgram.program);
-
-    gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
-    gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
+    shaderProgram.color = vec3.create([1.0, 1.0, 0.8]);
 
     // // Buffers
-    triangleVertexPositionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+    tmpBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tmpBuffer);
     
     // Grid
     var vertices = [
-      -20, -5, -20, 0, 1, 0,
-      20, -5, -20, 0, 1, 0,
-      -20, -5, 20, 0, 1, 0,
-      20, -5, -20, 0, 1, 0,
-      -20, -5, 20, 0, 1, 0,
-      20, -5, 20, 0, 1, 0
+      -20, -5, -20, 0, 1, 0, 20.0, 0.0,
+      20, -5, -20, 0, 1, 0, 0.0, 0.0,
+      -20, -5, 20, 0, 1, 0, 20.0, 20.0,
+      20, -5, -20, 0, 1, 0, 0.0, 0.0,
+      -20, -5, 20, 0, 1, 0, 20.0, 20.0,
+      20, -5, 20, 0, 1, 0, 0.0, 20.0
     ];
+
+    floorTexture = gl.createTexture();
+    floorTexture.image = new Image();
+    floorTexture.image.onload = function() {
+      gl.bindTexture(gl.TEXTURE_2D, floorTexture);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, floorTexture.image);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+
+      shaderProgram.uniforms.texture0 = gl.getUniformLocation(shaderProgram.program, "uTexSampler0");
+    }
+    floorTexture.image.src = "floortile.png";
+
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    triangleVertexPositionBuffer.itemSize = 6;
-    triangleVertexPositionBuffer.numItems = vertices.length / 6;
-
-    // mat4.translate(self.player.transform, [0, 4, 2]);
-    // mat4.rotateY(self.player.transform, Math.PI / 2);
-
+    tmpBuffer.itemSize = 8;
+    tmpBuffer.numItems = vertices.length / tmpBuffer.itemSize;
 
     return self;
   }
@@ -959,7 +971,7 @@ function Level() {
     self.super.render();
  
     // Clear view
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(0.2, 0.2, 0.2, 1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -969,11 +981,26 @@ function Level() {
       gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
       gl.enableVertexAttribArray(shaderProgram.attributes.normalPosition);
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
-      gl.vertexAttribPointer(shaderProgram.attributes.vertexPosition, 3, gl.FLOAT, false, 6*4, 0);
-      gl.vertexAttribPointer(shaderProgram.attributes.normalPosition, 3, gl.FLOAT, false, 6*4, 3*4);
+      gl.bindBuffer(gl.ARRAY_BUFFER, tmpBuffer);
+      gl.vertexAttribPointer(shaderProgram.attributes.vertexPosition, 3, gl.FLOAT, false, tmpBuffer.itemSize*4, 0);
+      gl.vertexAttribPointer(shaderProgram.attributes.normalPosition, 3, gl.FLOAT, false, tmpBuffer.itemSize*4, 3*4);
+      if (shaderProgram.attributes.texCoord >= 0) {
+        gl.enableVertexAttribArray(shaderProgram.attributes.texCoord);
+        gl.vertexAttribPointer(shaderProgram.attributes.texCoord, 2, gl.FLOAT, false, tmpBuffer.itemSize*4, 6*4);
+      
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, floorTexture);
+        gl.uniform1i(shaderProgram.uniforms.texture0, 0);
+      }
 
-      gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+      gl.drawArrays(gl.TRIANGLES, 0, tmpBuffer.numItems);
+
+      gl.disableVertexAttribArray(shaderProgram.attributes.vertexPosition);
+      gl.disableVertexAttribArray(shaderProgram.attributes.normalPosition);
+      if (shaderProgram.attributes.texCoord >= 0) {
+        gl.disableVertexAttribArray(shaderProgram.attributes.texCoord);
+      }
+
     mv.popMatrix();
     
     self.player.render();
@@ -982,7 +1009,7 @@ function Level() {
   }
 
   // Private
-  var triangleVertexPositionBuffer;
+  var tmpBuffer;
 
   var toggleCamera = function() {
     if (self.camera == self.levelCamera) {
@@ -1084,7 +1111,7 @@ function Player() {
     self.super.update();
 
     var x = 0, y = 0;
-    var tinc = 0.1;
+    var tinc = 0.5;
     if (self.game.input.keyCheck(87)) {  // w
       y -= tinc;
     }
@@ -1112,7 +1139,7 @@ function Player() {
     if (self.game.input.keyCheck(40)) {  // down
       pitch += rinc;
     }
-    var idlation = 0.003*Math.sin(0.1*i);
+    var idlation = 0.03*Math.sin(0.1*i);
     i++;
 
     if (self.world.camera != self.world.levelCamera) {
