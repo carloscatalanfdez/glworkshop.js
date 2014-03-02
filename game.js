@@ -43,29 +43,48 @@ function Level() {
   self.init = function(game) {
     self.super.init(game);
 
-    // Camera setup
-    self.playerCamera = new Camera().init();
-    self.camera.init().translate([-10, -10, -10]).pitch(Math.PI / 4).poleyaw(-Math.PI / 4).activate();
+    /*****************
+    /* Camera setup
+    /****************/
+    // View Volume
+    var vv = {};
+    vv.N = 0.1;
+    vv.F = 1000;
+    vv.xR = 0.05;
+    vv.xL = - vv.xR;
+    vv.yT = vv.xR * gl.viewportHeight / gl.viewportWidth;
+    vv.yB = - vv.yT;
+    // Main camera setup
+    self.camera.init(null, vv).translate([-10, -10, -10]).pitch(Math.PI / 4).poleyaw(-Math.PI / 4).activate();
     self.levelCamera = self.camera;
+    // Player fps camera setup
+    self.playerCamera = new Camera().init();  // will point to the player later
 
-    // Scene setup
+    /*****************
+    /* Scene setup
+    /****************/
+    // Lights
     lights.l[0] = {
       pos: vec3.create([0.0, 5.0, 0.0]),
       color: vec3.create([1.0, 1.0, 0.95])
     }
 
-    // Entities setup
+    /****************
+    /* Entities setup
+    /***************/
+    // Player
     self.player.init(self.game, self);
 
+    /******************
+    /* Hardcoded scene
+    /*****************/
     // Shaders
     var shader = new Shader().init("shaderTexture.vs", "shaderTexture.fs");
     shaderProgram = shader;
     shaderProgram.color = vec3.create([1.0, 1.0, 0.8]);
-
-    // // Buffers
+    // Buffers
     tmpBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, tmpBuffer);
-    
     // Grid
     var vertices = [
       -20, -5, -20, 0, 1, 0, 20.0, 0.0,
@@ -75,7 +94,10 @@ function Level() {
       -20, -5, 20, 0, 1, 0, 20.0, 20.0,
       20, -5, 20, 0, 1, 0, 0.0, 20.0
     ];
-
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    tmpBuffer.itemSize = 8;
+    tmpBuffer.numItems = vertices.length / tmpBuffer.itemSize;
+    // Texture
     floorTexture = gl.createTexture();
     floorTexture.image = new Image();
     floorTexture.image.onload = function() {
@@ -92,10 +114,6 @@ function Level() {
     }
     floorTexture.image.src = "floortile.png";
 
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    tmpBuffer.itemSize = 8;
-    tmpBuffer.numItems = vertices.length / tmpBuffer.itemSize;
-
     return self;
   }
 
@@ -104,31 +122,33 @@ function Level() {
 
     if (self.levelCamera.isActive()) {
       var x = 0, y = 0;
+      var tinc = 0.5;
+      var rinc = 0.1;
       if (self.game.input.keyCheck(87)) {  // w
-        y += 0.1;
+        y += tinc;
       }
       if (self.game.input.keyCheck(65)) {  // a
-        x += 0.1;
+        x += tinc;
       }
       if (self.game.input.keyCheck(83)) {  // s
-        y -= 0.1;
+        y -= tinc;
       }
       if (self.game.input.keyCheck(68)) {  // d
-        x -= 0.1;
+        x -= tinc;
       }
 
       var yaw = 0, pitch = 0;
       if (self.game.input.keyCheck(37)) {  // left
-        yaw -= 0.07;
+        yaw -= rinc;
       }
       if (self.game.input.keyCheck(38)) {  // up
-        pitch += 0.07;
+        pitch += rinc;
       }
       if (self.game.input.keyCheck(39)) {  // right
-        yaw += 0.07;
+        yaw += rinc;
       }
       if (self.game.input.keyCheck(40)) {  // down
-        pitch -= 0.07;
+        pitch -= rinc;
       }
 
       self.camera.translate([x, 0, y]).poleyaw(yaw).pitch(-pitch);
@@ -152,6 +172,7 @@ function Level() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    // Draw floor
     mv.pushMatrix();
       shaderProgram.bind();
       gl.enableVertexAttribArray(shaderProgram.attributes.vertexPosition);
@@ -176,9 +197,9 @@ function Level() {
       if (shaderProgram.attributes.texCoord >= 0) {
         gl.disableVertexAttribArray(shaderProgram.attributes.texCoord);
       }
-
     mv.popMatrix();
     
+    // Draw player
     self.player.render();
 
     return self;

@@ -459,7 +459,6 @@ function Camera() {
 
   self.mvMatrix = mat4.create();
   self.pMatrix = mat4.create();
-  self.viewVolume = {};
 
   self.pitchAngle;
   self.yawAngle;
@@ -468,29 +467,22 @@ function Camera() {
 
   /**
    * Stablishes this object as the current MVP matrix wrapper
+   *
+   * @param mat4 target Transform matrix defining the frame whose origin will be
+   * the lock-on target of this camera
+   *
+   * @param object vv Object containing the parameters of the camera's view volume
    */
-  self.init = function(target) {
-
-    // TODO: set these
-    // self.eye = quat4.create([10, 10, 10, 1]);
-    // var target = quat4.create([0, 0, 0, 1]);
-    // self.lookAt = quat4.create(eye.sub(target));
-    // self.focalLength = self.lookAt.module();
-    // self.lookAt.normalize();
-    
+  self.init = function(target, vv) {
     self.pitchAngle = self.yawAngle = self.rollAngle = 0;
     self.pos = vec3.create();
 
-    self.viewVolume.N = 2;
-    self.viewVolume.F = 10000;
-    self.viewVolume.xR = 0.2;
-    self.viewVolume.xL = - self.viewVolume.xR;
-    self.viewVolume.yT = 0.2;
-    self.viewVolume.yB = - self.viewVolume.yT;
-    var vv = self.viewVolume;
+    if (vv) {
+      mat4.frustum(vv.xL, vv.xR, vv.yB, vv.yT, vv.N, vv.F, self.pMatrix);
+    } else {
+      mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, self.pMatrix);
+    }
 
-    // mat4.frustum(vv.xL, vv.xR, vv.yT, vv.yB, vv.N, vv.F, p.matrix); // TODO: make this work
-    mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, self.pMatrix);
     mat4.identity(self.mvMatrix);
     
     if (target) {
@@ -793,7 +785,6 @@ function Entity() {
     mat4.rotateY(self.transform, alpha);
     mat4.rotateX(self.transform, self.pitchAngle);
 
-    // uh?
     self.yawAngle += alpha;
 
     return self;
@@ -812,11 +803,6 @@ function Entity() {
 
     return self;
   }
-
-  self.orbitate = function() {
-    // TODO
-    return self;
-  }  
 
   return self;
 }
