@@ -40,6 +40,10 @@ function Level() {
 
   self.lightPos;
 
+  self.entities = [];
+  self.createEntities = [];
+  self.removeEntities = [];
+
   self.init = function(game) {
     self.super.init(game);
 
@@ -74,6 +78,7 @@ function Level() {
     /***************/
     // Player
     self.player.init(self.game, self);
+    self.entities.push(self.player);
 
     /******************
     /* Hardcoded scene
@@ -120,6 +125,14 @@ function Level() {
   self.update = function() {
     self.super.update();
 
+    for (var i = 0; i < self.createEntities.length; i++) {
+      self.createEntities[i].init(game, self);
+      self.entities.push(self.createEntities[i]);
+    }
+    self.entities = self.entities.filter(function (i) { return self.removeEntities.indexOf(i) < 0; });
+    self.createEntities = [];
+    self.removeEntities = [];
+
     if (self.levelCamera.isActive()) {
       var x = 0, y = 0;
       var tinc = 0.5;
@@ -158,7 +171,9 @@ function Level() {
       toggleCamera();
     }
 
-    self.player.update();
+    for (var i = 0; i < self.entities.length; i++) {
+        self.entities[i].update();
+    }
 
     return self;
   }
@@ -200,7 +215,9 @@ function Level() {
     mv.popMatrix();
     
     // Draw player
-    self.player.render();
+    for (var i = 0; i < self.entities.length; i++) {
+        self.entities[i].render();
+    }
 
     return self;
   }
@@ -233,71 +250,7 @@ function Player() {
     shader.color = vec3.create([0.34, 0.32, 1.0]);
 
     // Create mesh (cube)
-    var m = new Mesh().init(8, 12);
-    m.vertexPool[0] = quat4.create([-0.5, -0.5, -0.5, 1]);
-    m.vertexPool[1] = quat4.create([-0.5, -0.5, 0.5, 1]);
-    m.vertexPool[2] = quat4.create([-0.5, 0.5, -0.5, 1]);
-    m.vertexPool[3] = quat4.create([-0.5, 0.5, 0.5, 1]);
-    m.vertexPool[4] = quat4.create([0.5, -0.5, -0.5, 1]);
-    m.vertexPool[5] = quat4.create([0.5, -0.5, 0.5, 1]);
-    m.vertexPool[6] = quat4.create([0.5, 0.5, -0.5, 1]);
-    m.vertexPool[7] = quat4.create([0.5, 0.5, 0.5, 1]);
-
-    m.faces[0].init(3);
-    m.faces[0].vertexNormalPairs[0].vertex = 4;
-    m.faces[0].vertexNormalPairs[1].vertex = 6;
-    m.faces[0].vertexNormalPairs[2].vertex = 5;
-    m.faces[1].init(3);
-    m.faces[1].vertexNormalPairs[0].vertex = 5;
-    m.faces[1].vertexNormalPairs[1].vertex = 6;
-    m.faces[1].vertexNormalPairs[2].vertex = 7;
-
-    m.faces[2].init(3);
-    m.faces[2].vertexNormalPairs[0].vertex = 6;
-    m.faces[2].vertexNormalPairs[1].vertex = 2;
-    m.faces[2].vertexNormalPairs[2].vertex = 7;
-    m.faces[3].init(3);
-    m.faces[3].vertexNormalPairs[0].vertex = 7;
-    m.faces[3].vertexNormalPairs[1].vertex = 2;
-    m.faces[3].vertexNormalPairs[2].vertex = 3;
-
-    m.faces[4].init(3);
-    m.faces[4].vertexNormalPairs[0].vertex = 2;
-    m.faces[4].vertexNormalPairs[1].vertex = 0;
-    m.faces[4].vertexNormalPairs[2].vertex = 3;
-    m.faces[5].init(3);
-    m.faces[5].vertexNormalPairs[0].vertex = 3;
-    m.faces[5].vertexNormalPairs[1].vertex = 0;
-    m.faces[5].vertexNormalPairs[2].vertex = 1;
-
-    m.faces[6].init(3);
-    m.faces[6].vertexNormalPairs[0].vertex = 0;
-    m.faces[6].vertexNormalPairs[1].vertex = 4;
-    m.faces[6].vertexNormalPairs[2].vertex = 1;
-    m.faces[7].init(3);
-    m.faces[7].vertexNormalPairs[0].vertex = 1;
-    m.faces[7].vertexNormalPairs[1].vertex = 4;
-    m.faces[7].vertexNormalPairs[2].vertex = 5;
-
-    m.faces[8].init(3);
-    m.faces[8].vertexNormalPairs[0].vertex = 7;
-    m.faces[8].vertexNormalPairs[1].vertex = 3;
-    m.faces[8].vertexNormalPairs[2].vertex = 5;
-    m.faces[9].init(3);
-    m.faces[9].vertexNormalPairs[0].vertex = 5;
-    m.faces[9].vertexNormalPairs[1].vertex = 3;
-    m.faces[9].vertexNormalPairs[2].vertex = 1;
-
-    m.faces[10].init(3);
-    m.faces[10].vertexNormalPairs[0].vertex = 4;
-    m.faces[10].vertexNormalPairs[1].vertex = 0;
-    m.faces[10].vertexNormalPairs[2].vertex = 6;
-    m.faces[11].init(3);
-    m.faces[11].vertexNormalPairs[0].vertex = 6;
-    m.faces[11].vertexNormalPairs[1].vertex = 0;
-    m.faces[11].vertexNormalPairs[2].vertex = 2;
-
-    m.computeNormals().compile(shader);
+    var m = new Cube().init(1, 1, 1).computeNormals().compile(shader);
 
     self.super.mesh = m;
 
@@ -336,6 +289,13 @@ function Player() {
     if (self.game.input.keyCheck(40)) {  // down
       pitch += rinc;
     }
+
+    if (self.game.input.keyPressed(32)) {  // Space
+      var bullet = new Bullet(2, 0);
+      bullet.copyTransform(self);
+      self.world.createEntities.push(bullet);
+    }
+
     var idlation = 0.03*Math.sin(0.1*i);
     i++;
 
@@ -351,6 +311,44 @@ function Player() {
 
   // Private
   var i = 0;
+
+  return self;
+}
+
+function Bullet(/* float */ force, /* int (time in frames) */ lifespan) {
+  var self = object(new Entity());
+
+  self.force = force;
+  self.lifespan = lifespan || 10;
+
+  self.init = function(game, world) {
+    self.super.init(game, world);
+
+    var shader = new Shader();
+    shader.init("shader.vs", "shader.fs");
+    shader.color = vec3.create([0.64, 0.92, 0.2]);
+
+    // Mesh dimensions (long cube)
+    var xs = 0.1,
+        ys = 0.1,
+        zs = 2;
+    // Create mesh
+    var m = new Cube().init(xs, ys, zs).computeNormals().compile(shader);
+
+    self.super.mesh = m;
+
+    self.translate([0, 0, -zs/2 + self.force]);  // first frame always on 0
+  }
+
+  self.update = function() {
+    self.super.update();
+
+    self.translate([0, 0, -force]);
+    
+    if (--self.lifespan < 0) {
+      self.world.removeEntities.push(self);
+    }
+  }
 
   return self;
 }

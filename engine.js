@@ -448,6 +448,85 @@ function Mesh() {
   return self;
 }
 
+function Cube() {
+  var self = object(new Mesh());
+
+  self.init = function(xs, ys, zs) {
+    self.super.init(8, 12);
+
+    var halfxs = xs / 2;
+    var halfys = ys / 2;
+    var halfzs = zs / 2;
+
+    self.vertexPool[0] = quat4.create([-halfxs, -halfys, -halfzs, 1]);
+    self.vertexPool[1] = quat4.create([-halfxs, -halfys, halfzs, 1]);
+    self.vertexPool[2] = quat4.create([-halfxs, halfys, -halfzs, 1]);
+    self.vertexPool[3] = quat4.create([-halfxs, halfys, halfzs, 1]);
+    self.vertexPool[4] = quat4.create([halfxs, -halfys, -halfzs, 1]);
+    self.vertexPool[5] = quat4.create([halfxs, -halfys, halfzs, 1]);
+    self.vertexPool[6] = quat4.create([halfxs, halfys, -halfzs, 1]);
+    self.vertexPool[7] = quat4.create([halfxs, halfys, halfzs, 1]);
+
+    self.faces[0].init(3);
+    self.faces[0].vertexNormalPairs[0].vertex = 4;
+    self.faces[0].vertexNormalPairs[1].vertex = 6;
+    self.faces[0].vertexNormalPairs[2].vertex = 5;
+    self.faces[1].init(3);
+    self.faces[1].vertexNormalPairs[0].vertex = 5;
+    self.faces[1].vertexNormalPairs[1].vertex = 6;
+    self.faces[1].vertexNormalPairs[2].vertex = 7;
+
+    self.faces[2].init(3);
+    self.faces[2].vertexNormalPairs[0].vertex = 6;
+    self.faces[2].vertexNormalPairs[1].vertex = 2;
+    self.faces[2].vertexNormalPairs[2].vertex = 7;
+    self.faces[3].init(3);
+    self.faces[3].vertexNormalPairs[0].vertex = 7;
+    self.faces[3].vertexNormalPairs[1].vertex = 2;
+    self.faces[3].vertexNormalPairs[2].vertex = 3;
+
+    self.faces[4].init(3);
+    self.faces[4].vertexNormalPairs[0].vertex = 2;
+    self.faces[4].vertexNormalPairs[1].vertex = 0;
+    self.faces[4].vertexNormalPairs[2].vertex = 3;
+    self.faces[5].init(3);
+    self.faces[5].vertexNormalPairs[0].vertex = 3;
+    self.faces[5].vertexNormalPairs[1].vertex = 0;
+    self.faces[5].vertexNormalPairs[2].vertex = 1;
+
+    self.faces[6].init(3);
+    self.faces[6].vertexNormalPairs[0].vertex = 0;
+    self.faces[6].vertexNormalPairs[1].vertex = 4;
+    self.faces[6].vertexNormalPairs[2].vertex = 1;
+    self.faces[7].init(3);
+    self.faces[7].vertexNormalPairs[0].vertex = 1;
+    self.faces[7].vertexNormalPairs[1].vertex = 4;
+    self.faces[7].vertexNormalPairs[2].vertex = 5;
+
+    self.faces[8].init(3);
+    self.faces[8].vertexNormalPairs[0].vertex = 7;
+    self.faces[8].vertexNormalPairs[1].vertex = 3;
+    self.faces[8].vertexNormalPairs[2].vertex = 5;
+    self.faces[9].init(3);
+    self.faces[9].vertexNormalPairs[0].vertex = 5;
+    self.faces[9].vertexNormalPairs[1].vertex = 3;
+    self.faces[9].vertexNormalPairs[2].vertex = 1;
+
+    self.faces[10].init(3);
+    self.faces[10].vertexNormalPairs[0].vertex = 4;
+    self.faces[10].vertexNormalPairs[1].vertex = 0;
+    self.faces[10].vertexNormalPairs[2].vertex = 6;
+    self.faces[11].init(3);
+    self.faces[11].vertexNormalPairs[0].vertex = 6;
+    self.faces[11].vertexNormalPairs[1].vertex = 0;
+    self.faces[11].vertexNormalPairs[2].vertex = 2;
+
+    return self;
+  }
+
+  return self;
+}
+
 /*******************************************************
  *******************************************************
  * View math
@@ -722,11 +801,14 @@ function Entity() {
   self.init = function(game, world) {
     self.game = game;
     self.world = world;
-    self.transform = mat4.create();
-    mat4.identity(self.transform);
 
-    self.pitchAngle = self.yawAngle = self.rollAngle = 0;
-    self.pos = vec3.create();
+    if (!self.transform) {
+      self.transform = mat4.create();
+      mat4.identity(self.transform);
+
+      self.pitchAngle = self.yawAngle = self.rollAngle = 0;
+      self.pos = vec3.create();
+    }
 
     return self;
   }
@@ -800,6 +882,18 @@ function Entity() {
   self.roll = function(alpha) {
     mat4.rotateZ(self.transform, alpha);
     self.rollAngle += alpha;
+
+    return self;
+  }
+
+  self.copyTransform = function(entity) {
+    self.transform = mat4.set(entity.transform, mat4.create());
+
+    self.pitchAngle = entity.pitchAngle;
+    self.yawAngle = entity.yawAngle;
+    self.rollAngle = entity.rollAngle;
+
+    self.pos = vec3.set(entity.pos, vec3.create());
 
     return self;
   }
