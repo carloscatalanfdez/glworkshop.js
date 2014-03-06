@@ -544,6 +544,9 @@ function Camera() {
   self.rollAngle;
   self.pos;
 
+  self.target;
+  self.targetOffsetTransform;
+
   /**
    * Stablishes this object as the current MVP matrix wrapper
    *
@@ -552,7 +555,7 @@ function Camera() {
    *
    * @param object vv Object containing the parameters of the camera's view volume
    */
-  self.init = function(target, vv) {
+  self.init = function(vv) {
     self.pitchAngle = self.yawAngle = self.rollAngle = 0;
     self.pos = vec3.create();
 
@@ -563,10 +566,6 @@ function Camera() {
     }
 
     mat4.identity(self.mvMatrix);
-    
-    if (target) {
-      self.lockOn(target);
-    }
 
     return self;
   }
@@ -661,8 +660,9 @@ function Camera() {
     return self;
   }
 
-  self.lockOn = function(transform) {
+  self.lockOn = function(transform, offsetTransform) {
     self.target = transform;
+    self.targetOffsetTransform = offsetTransform;
 
     return self;
   }
@@ -676,8 +676,7 @@ function Camera() {
   self.commit = function() {
     if (self.target) {
       mat4.inverse(self.target, self.mvMatrix);
-      self.translate([0, -5, -5]);
-      self.pitch(Math.PI / 4);
+      mat4.multiply(self.targetOffsetTransform, self.mvMatrix, self.mvMatrix);
     } else {
       // nothing to do here, really
     }

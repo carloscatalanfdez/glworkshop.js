@@ -59,7 +59,7 @@ function Level() {
     vv.yT = vv.xR * gl.viewportHeight / gl.viewportWidth;
     vv.yB = - vv.yT;
     // Main camera setup
-    self.camera.init(null, vv).translate([-10, -10, -10]).pitch(Math.PI / 4).poleyaw(-Math.PI / 4).activate();
+    self.camera.init(vv).translate([-10, -10, -10]).pitch(Math.PI / 4).poleyaw(-Math.PI / 4).activate();
     self.levelCamera = self.camera;
     // Player fps camera setup
     self.playerCamera = new Camera().init();  // will point to the player later
@@ -118,6 +118,8 @@ function Level() {
       shaderProgram.uniforms.texture0 = gl.getUniformLocation(shaderProgram.program, "uTexSampler0");
     }
     floorTexture.image.src = "floortile.png";
+      
+    toggleCamera();
 
     return self;
   }
@@ -227,7 +229,7 @@ function Level() {
 
   var toggleCamera = function() {
     if (self.camera == self.levelCamera) {
-      self.playerCamera.lockOn(self.player.transform);
+      self.playerCamera.lockOn(self.player.transform, self.player.cameraOffsetTransform);
       self.super.camera = self.playerCamera;
     } else {
       self.super.camera = self.levelCamera;
@@ -242,6 +244,8 @@ function Level() {
 function Player() {
   var self = object(new Entity());
 
+  self.cameraOffsetTransform;
+
   self.init = function(game, world) {
     self.super.init(game, world);
 
@@ -253,6 +257,12 @@ function Player() {
     var m = new Cube().init(1, 1, 1).computeNormals().compile(shader);
 
     self.super.mesh = m;
+
+    // Camera offset transform
+    var mat = mat4.identity(mat4.create());
+    mat4.rotateX(mat, Math.PI / 32);
+    mat4.translate(mat, [0, -2.5, -5]);
+    self.cameraOffsetTransform = mat;
 
     return self;
   }
