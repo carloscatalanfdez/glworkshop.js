@@ -69,7 +69,7 @@ function Level() {
     /****************/
     // Lights
     lights.l[0] = {
-      pos: vec3.create([0.0, 5.0, 0.0]),
+      pos: vec3.create([-4.0, 5.0, -4.0]),
       color: vec3.create([1.0, 1.0, 0.95])
     }
 
@@ -79,6 +79,8 @@ function Level() {
     // Player
     self.player.init(self.game, self);
     self.entities.push(self.player);
+    // Main Enemy
+    self.entities.push(new Enemy().init(self.game, self).translate([-5, 0, -5]).poleyaw(1));
 
     /******************
     /* Hardcoded scene
@@ -241,6 +243,12 @@ function Level() {
   return self;
 }
 
+/*******************************************************
+ *******************************************************
+ * Entities
+ *******************************************************
+ ******************************************************/
+
 function Player() {
   var self = object(new Entity());
 
@@ -325,7 +333,7 @@ function Player() {
   return self;
 }
 
-function Bullet(/* float */ force, /* int (time in frames) */ lifespan) {
+function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
   var self = object(new Entity());
 
   self.force = force;
@@ -358,6 +366,31 @@ function Bullet(/* float */ force, /* int (time in frames) */ lifespan) {
     if (--self.lifespan < 0) {
       self.world.removeEntities.push(self);
     }
+  }
+
+  return self;
+}
+
+function Enemy() {
+  var self = object(new Entity());
+
+
+  self.init = function(game, world) {
+    self.super.init(game, world);
+
+    var shader = new Shader();
+    shader.init("shader.vs", "shader.fs");
+    shader.color = vec3.create([0.94, 0.22, 0.22]);
+
+    var xs = 1.5,
+        ys = 2.5,
+        zs = 1;
+    // Create mesh
+    var m = new Cube().init(xs, ys, zs).computeNormals().compile(shader);
+
+    self.super.mesh = m;
+
+    return self;
   }
 
   return self;

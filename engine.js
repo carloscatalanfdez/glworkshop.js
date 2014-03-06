@@ -788,26 +788,18 @@ function Entity() {
 
   self.game;
   self.world;
-  self.transform;
   self.mesh;
   self.shader;
 
-  self.pitchAngle;
-  self.yawAngle;
-  self.rollAngle;
-  self.pos;
+  self.transform = mat4.identity(mat4.create());
+  self.pitchAngle = 0;
+  self.yawAngle = 0;
+  self.rollAngle = 0;
+  self.pos = vec3.create();
 
   self.init = function(game, world) {
     self.game = game;
     self.world = world;
-
-    if (!self.transform) {
-      self.transform = mat4.create();
-      mat4.identity(self.transform);
-
-      self.pitchAngle = self.yawAngle = self.rollAngle = 0;
-      self.pos = vec3.create();
-    }
 
     return self;
   }
