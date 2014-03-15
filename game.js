@@ -40,10 +40,6 @@ function Level() {
 
   self.lightPos;
 
-  self.entities = [];
-  self.createEntities = [];
-  self.removeEntities = [];
-
   self.init = function(game) {
     self.super.init(game);
 
@@ -129,14 +125,6 @@ function Level() {
   self.update = function() {
     self.super.update();
 
-    for (var i = 0; i < self.createEntities.length; i++) {
-      self.createEntities[i].init(game, self);
-      self.entities.push(self.createEntities[i]);
-    }
-    self.entities = self.entities.filter(function (i) { return self.removeEntities.indexOf(i) < 0; });
-    self.createEntities = [];
-    self.removeEntities = [];
-
     if (self.levelCamera.isActive()) {
       var x = 0, y = 0;
       var tinc = 0.5;
@@ -173,10 +161,6 @@ function Level() {
 
     if (self.game.input.keyPressed(80)) {  // p
       toggleCamera();
-    }
-
-    for (var i = 0; i < self.entities.length; i++) {
-        self.entities[i].update();
     }
 
     return self;
@@ -262,7 +246,7 @@ function Player() {
     shader.color = vec3.create([0.34, 0.32, 1.0]);
 
     // Create mesh (cube)
-    var m = new Cube().init(1, 1, 1).computeNormals().compile(shader);
+    var m = new Cube().init(1, 1, 1).compile(shader);
 
     self.super.mesh = m;
 
@@ -271,6 +255,8 @@ function Player() {
     mat4.rotateX(mat, Math.PI / 32);
     mat4.translate(mat, [0, -2.5, -5]);
     self.cameraOffsetTransform = mat;
+
+    self.bbox = new BoundingBox().init(1, 1, 1);
 
     return self;
   }
@@ -351,7 +337,7 @@ function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
         ys = 0.1,
         zs = 2;
     // Create mesh
-    var m = new Cube().init(xs, ys, zs).computeNormals().compile(shader);
+    var m = new Cube().init(xs, ys, zs).compile(shader);
 
     self.super.mesh = m;
 
@@ -386,7 +372,7 @@ function Enemy() {
         ys = 2.5,
         zs = 1;
     // Create mesh
-    var m = new Cube().init(xs, ys, zs).computeNormals().compile(shader);
+    var m = new Cube().init(xs, ys, zs).compile(shader);
 
     self.super.mesh = m;
 

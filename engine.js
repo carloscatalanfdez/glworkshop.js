@@ -360,7 +360,206 @@ function Face() {
   return self;
 }
 
+/*
+ * Vertext have to be specified clockwise by an outside party
+ */
+function ConvexPolyhedron() {
+  var self = object();
 
+  self.vertexPool;
+  self.normalPool;
+  self.faces;
+  self.shader;
+
+  self.compiledVertex;
+  self.compiledVertexBuffer;
+
+  self.init = function(nvertex, nnormals) {
+    self.vertexPool = generateArrayWithInitializer(nvertex, function() { return quat4.create() });
+    self.normalPool = generateArrayWithInitializer(nnormals, function() { return quat4.create() });
+    self.faces = generateArrayWithInitializer(nnormals, function() { return new Face(); });
+
+    return self;
+  }
+
+  self.computeNormals = function() {
+    for (var i = 0; i < self.faces.length; i++) {
+      self.normalPool[i] = self.faces[i].computeNormal(self.vertexPool);
+      for (var j = 0; j < self.faces[i].vertexNormalPairs.length; j++) {
+        self.faces[i].vertexNormalPairs[j].normal = i;
+      }
+    }
+
+    return self;
+  }
+
+  self.computeEdges = function() {
+    var nfaces = self.faces.length;
+    var nvertex = self.vertexPool.length;
+    var nedges = nvertex + nfaces - 2;
+    self.edgesPool = generateArrayWithInitializer(nedges, function() { return vec3.create() });
+    var nedgespool = 0;
+    for (var i = 0; i < self.faces.length; i++) {
+      var face = self.faces[i];
+      for (var j = 1; j < face.vertexNormalPairs.length; j++) {
+        var edge = vec3.subtract(self.vertexPool[face.vertexNormalPairs[j].vertex], self.vertexPool[face.vertexNormalPairs[j-1].vertex], vec3.create());
+        if (self.edgesPool.indexOf(edge) < 0) {
+          self.edgesPool[nedgespool++] = edge;
+        }
+      }
+    }
+
+    return self;
+  }
+
+  var logvertex = function(v) {
+    return "(" + v[0] + "," + [1] + "," + [2] + ");"
+  }
+
+  self.collides = function(other) {
+
+    // Test using self normals as separating axis
+    for (var i = 0; i < self.faces.length; i++) {
+      var normal = self.normalPool[self.faces[i].vertexNormalPairs[0].normal];
+      if (!intersectOnProjection(self, other, normal)) {
+        return false;
+      }
+    }
+    
+    // Test using other normals as separating axis
+    // console.log("----------------- trying his axis");
+    for (var i = 0; i < other.faces.length; i++) {
+      var normal = other.normalPool[other.faces[i].vertexNormalPairs[0].normal];
+      if (!intersectOnProjection(other, self, normal)) {
+        return false;
+      }
+    }
+
+    // Test using the cross product of the edges as separating axis
+    // console.log("----------------- trying our cross products axis");
+    for (var i = 0; i < self.edgesPool.length; i++) {
+      for (var j = 0; j < other.edgesPool.length; j++) {
+        var normal = vec3.cross(self.edgesPool[i], other.edgesPool[j]);
+        if (!intersectOnProjection(self, other, normal)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Computes the projection interval of this polyhedron onto the given vector (min and max projected vertices)
+   */
+  self.computeProjectionInterval = function(vector) {
+    var max = min = null;
+
+    // console.log("--------- vector ", logvertex(vector));
+    for (var i = 0; i < self.edgesPool.length; i++) {
+      projectedVertex = vec3.dot(vector, self.edgesPool[i]);
+      max = max != null ? Math.max(max, projectedVertex) : projectedVertex;
+      min = min != null ? Math.min(min, projectedVertex) : projectedVertex;
+    }
+
+    return [min, max];
+  }
+
+  var intersectOnProjection = function(polyedraA, polyedraB, vector) {
+    var myInterval = polyedraA.computeProjectionInterval(vector);
+    var otherInterval = polyedraB.computeProjectionInterval(vector);
+
+    var intersection = [ Math.max(myInterval[0], otherInterval[0]), Math.min(myInterval[1], otherInterval[1])];
+    return intersection[0] <= intersection[1];
+  }
+
+  return self;
+}
+
+function BoundingBox() {
+  var self = object(new ConvexPolyhedron());
+
+  self.init = function(xs, ys, zs) {
+    self.super.init(8, 12);
+
+    var halfxs = xs / 2;
+    var halfys = ys / 2;
+    var halfzs = zs / 2;
+
+    self.vertexPool[0] = quat4.create([-halfxs, -halfys, -halfzs, 1]);
+    self.vertexPool[1] = quat4.create([-halfxs, -halfys, halfzs, 1]);
+    self.vertexPool[2] = quat4.create([-halfxs, halfys, -halfzs, 1]);
+    self.vertexPool[3] = quat4.create([-halfxs, halfys, halfzs, 1]);
+    self.vertexPool[4] = quat4.create([halfxs, -halfys, -halfzs, 1]);
+    self.vertexPool[5] = quat4.create([halfxs, -halfys, halfzs, 1]);
+    self.vertexPool[6] = quat4.create([halfxs, halfys, -halfzs, 1]);
+    self.vertexPool[7] = quat4.create([halfxs, halfys, halfzs, 1]);
+
+    self.faces[0].init(3);
+    self.faces[0].vertexNormalPairs[0].vertex = 4;
+    self.faces[0].vertexNormalPairs[1].vertex = 6;
+    self.faces[0].vertexNormalPairs[2].vertex = 5;
+    self.faces[1].init(3);
+    self.faces[1].vertexNormalPairs[0].vertex = 5;
+    self.faces[1].vertexNormalPairs[1].vertex = 6;
+    self.faces[1].vertexNormalPairs[2].vertex = 7;
+
+    self.faces[2].init(3);
+    self.faces[2].vertexNormalPairs[0].vertex = 6;
+    self.faces[2].vertexNormalPairs[1].vertex = 2;
+    self.faces[2].vertexNormalPairs[2].vertex = 7;
+    self.faces[3].init(3);
+    self.faces[3].vertexNormalPairs[0].vertex = 7;
+    self.faces[3].vertexNormalPairs[1].vertex = 2;
+    self.faces[3].vertexNormalPairs[2].vertex = 3;
+
+    self.faces[4].init(3);
+    self.faces[4].vertexNormalPairs[0].vertex = 2;
+    self.faces[4].vertexNormalPairs[1].vertex = 0;
+    self.faces[4].vertexNormalPairs[2].vertex = 3;
+    self.faces[5].init(3);
+    self.faces[5].vertexNormalPairs[0].vertex = 3;
+    self.faces[5].vertexNormalPairs[1].vertex = 0;
+    self.faces[5].vertexNormalPairs[2].vertex = 1;
+
+    self.faces[6].init(3);
+    self.faces[6].vertexNormalPairs[0].vertex = 0;
+    self.faces[6].vertexNormalPairs[1].vertex = 4;
+    self.faces[6].vertexNormalPairs[2].vertex = 1;
+    self.faces[7].init(3);
+    self.faces[7].vertexNormalPairs[0].vertex = 1;
+    self.faces[7].vertexNormalPairs[1].vertex = 4;
+    self.faces[7].vertexNormalPairs[2].vertex = 5;
+
+    self.faces[8].init(3);
+    self.faces[8].vertexNormalPairs[0].vertex = 7;
+    self.faces[8].vertexNormalPairs[1].vertex = 3;
+    self.faces[8].vertexNormalPairs[2].vertex = 5;
+    self.faces[9].init(3);
+    self.faces[9].vertexNormalPairs[0].vertex = 5;
+    self.faces[9].vertexNormalPairs[1].vertex = 3;
+    self.faces[9].vertexNormalPairs[2].vertex = 1;
+
+    self.faces[10].init(3);
+    self.faces[10].vertexNormalPairs[0].vertex = 4;
+    self.faces[10].vertexNormalPairs[1].vertex = 0;
+    self.faces[10].vertexNormalPairs[2].vertex = 6;
+    self.faces[11].init(3);
+    self.faces[11].vertexNormalPairs[0].vertex = 6;
+    self.faces[11].vertexNormalPairs[1].vertex = 0;
+    self.faces[11].vertexNormalPairs[2].vertex = 2;
+
+    self.computeNormals().computeEdges();
+
+    return self;
+  }
+
+  return self;
+}
+
+/*
+ * Vertext have to be specified clockwise by an outside party
+ */
 function Mesh() {
   var self = object();
 
@@ -520,6 +719,8 @@ function Cube() {
     self.faces[11].vertexNormalPairs[0].vertex = 6;
     self.faces[11].vertexNormalPairs[1].vertex = 0;
     self.faces[11].vertexNormalPairs[2].vertex = 2;
+
+    self.computeNormals();
 
     return self;
   }
@@ -764,6 +965,11 @@ function GameState() {
 
   self.game;
   self.camera;
+
+  self.entities = [];
+  self.createEntities = [];
+  self.removeEntities = [];
+
   self.init = function(game) {
     self.game = game;
     self.camera = new Camera();
@@ -772,6 +978,18 @@ function GameState() {
   }
 
   self.update = function() {
+    for (var i = 0; i < self.createEntities.length; i++) {
+      self.createEntities[i].init(game, self);
+      self.entities.push(self.createEntities[i]);
+    }
+    self.entities = self.entities.filter(function (i) { return self.removeEntities.indexOf(i) < 0; });
+    self.createEntities = [];
+    self.removeEntities = [];
+
+    for (var i = 0; i < self.entities.length; i++) {
+        self.entities[i].update();
+    }
+
     return self;
   }
 
@@ -790,6 +1008,7 @@ function Entity() {
   self.world;
   self.mesh;
   self.shader;
+  self.bbox;
 
   self.transform = mat4.identity(mat4.create());
   self.pitchAngle = 0;
