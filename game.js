@@ -35,6 +35,7 @@ function Level() {
   var self = object(new GameState());
 
   self.player = new Player();
+  self.enemy = new Enemy();
   self.levelCamera;
   self.playerCamera;
 
@@ -65,7 +66,7 @@ function Level() {
     /****************/
     // Lights
     lights.l[0] = {
-      pos: vec3.create([-4.0, 5.0, -4.0]),
+      pos: quat4.create([-4.0, 5.0, -4.0, 1.0]),
       color: vec3.create([1.0, 1.0, 0.95])
     }
 
@@ -76,7 +77,8 @@ function Level() {
     self.player.init(self.game, self);
     self.entities.push(self.player);
     // Main Enemy
-    self.entities.push(new Enemy().init(self.game, self).translate([-5, 0, -5]).poleyaw(1));
+    self.enemy.init(self.game, self).translate([-5, 0, -5]).poleyaw(1);
+    self.entities.push(self.enemy);
 
     /******************
     /* Hardcoded scene
@@ -125,6 +127,14 @@ function Level() {
   self.update = function() {
     self.super.update();
 
+    self.player.bbox.generateGlobalPools(self.player.transform);
+    self.enemy.bbox.generateGlobalPools(self.enemy.transform);
+    if (self.player.bbox.collides(self.enemy.bbox)) {
+      vec3.set([0.98, 0.67, 0.1], self.player.bbox.shader.color);
+    } else {
+      vec3.set([0.34, 0.34, 0.34], self.player.bbox.shader.color);
+    }
+
     if (self.levelCamera.isActive()) {
       var x = 0, y = 0;
       var tinc = 0.5;
@@ -161,6 +171,10 @@ function Level() {
 
     if (self.game.input.keyPressed(80)) {  // p
       toggleCamera();
+    }
+
+    if (self.game.input.keyPressed(89)) {  // y
+      DEBUG = !DEBUG;
     }
 
     return self;
@@ -256,7 +270,10 @@ function Player() {
     mat4.translate(mat, [0, -2.5, -5]);
     self.cameraOffsetTransform = mat;
 
-    self.bbox = new BoundingBox().init(1, 1, 1);
+    shader = new Shader();
+    shader.init("shader.vs", "shader.fs");
+    shader.color = vec3.create([1.0, 1.0, 1.0]);
+    self.super.bbox = new Cube().init(1, 1, 1).compile(shader);
 
     return self;
   }
@@ -311,7 +328,6 @@ function Player() {
 
     return self;
   }
-
 
   // Private
   var i = 0;
@@ -373,8 +389,12 @@ function Enemy() {
         zs = 1;
     // Create mesh
     var m = new Cube().init(xs, ys, zs).compile(shader);
-
     self.super.mesh = m;
+
+    var shader = new Shader();   
+    shader.init("shader.vs", "shader.fs");
+    shader.color = vec3.create([1.0, 1.0, 1.0]);
+    self.super.bbox = new Cube().init(xs * 2, ys, zs).compile(shader);
 
     return self;
   }
