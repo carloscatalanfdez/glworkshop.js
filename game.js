@@ -125,35 +125,38 @@ function Level() {
   }
 
   self.update = function() {
+    
+    /*****************************
+     * Pause logic
+     *****************************/
     if (self.game.input.keyPressed(84)) {  // t
       self.paused = !self.paused
     }
-
     if (self.paused)
       return;
 
+    /*****************************
+     * Gameplay logic
+     *****************************/
     self.super.update();
-
-    // self.player.bbox.generateGlobalPools(self.player.transform);
-    // self.enemy.bbox.generateGlobalPools(self.enemy.transform);
-    // if (self.player.bbox.collides(self.enemy.bbox)) {
-    //   vec3.set([0.98, 0.67, 0.1], self.player.bbox.shader.color);
-    // } else {
-    //   vec3.set([0.34, 0.34, 0.34], self.player.bbox.shader.color);
-    // }
     
+    /**
+     * Collisions
+     */
     for (var i = 0; i < self.entities.length; i++) {
       if (self.entities[i].bbox) {
         self.entities[i].bbox.generateGlobalPools(self.entities[i].transform);
       }
     }
-
+    
     for (var i = 0; i < self.entities.length - 1; i++) {
+      var firstEntity = self.entities[i];
       for (var j = i + 1; j < self.entities.length; j++) {
-        if (self.entities[i].bbox && self.entities[j].bbox && self.entities[i] != self.entities[j]) {
-          if (self.entities[i].bbox.collides(self.entities[j].bbox)) {
-            self.entities[i].onCollide(self.entities[j]);
-            self.entities[j].onCollide(self.entities[i]);
+        var secondEntity = self.entities[j];
+        if (firstEntity.bbox && secondEntity.bbox && firstEntity != secondEntity) {
+          if (firstEntity.bbox.collides(secondEntity.bbox)) {
+            firstEntity.onCollide(secondEntity);
+            secondEntity.onCollide(firstEntity);
           }
         }
       }
