@@ -394,7 +394,7 @@ function Enemy() {
     var shader = new Shader();   
     shader.init("shader.vs", "shader.fs");
     shader.color = vec3.create([1.0, 1.0, 1.0]);
-    self.super.bbox = new Cube().init(xs * 2, ys, zs).compile(shader);
+    self.super.bbox = new Cube().init(xs, ys, zs).compile(shader);
 
     return self;
   }

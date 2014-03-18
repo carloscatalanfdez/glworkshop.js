@@ -542,8 +542,8 @@ function Mesh() {
     var max = min = null;
 
     // console.log("--------- vector ", logvertex(vector));
-    for (var i = 0; i < self.edgePool.length; i++) {
-      projectedVertex = vec3.dot(vector, self.edgePool[i]);
+    for (var i = 0; i < self.vertexPool.length; i++) {
+      projectedVertex = vec3.dot(vector, self.vertexPool[i]);
       max = max != null ? Math.max(max, projectedVertex) : projectedVertex;
       min = min != null ? Math.min(min, projectedVertex) : projectedVertex;
     }
