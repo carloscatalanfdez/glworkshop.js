@@ -35,9 +35,10 @@ function Level() {
   var self = object(new GameState());
 
   self.player = new Player();
-  self.enemy = new Enemy();
   self.levelCamera;
   self.playerCamera;
+
+  self.paused = false;
 
   self.lightPos;
 
@@ -77,8 +78,7 @@ function Level() {
     self.player.init(self.game, self);
     self.entities.push(self.player);
     // Main Enemy
-    self.enemy.init(self.game, self).translate([-5, 0, -5]).poleyaw(1);
-    self.entities.push(self.enemy);
+    self.entities.push(new EnemySpawner(Enemy).init(self.game, self));
 
     /******************
     /* Hardcoded scene
@@ -125,14 +125,38 @@ function Level() {
   }
 
   self.update = function() {
+    if (self.game.input.keyPressed(84)) {  // t
+      self.paused = !self.paused
+    }
+
+    if (self.paused)
+      return;
+
     self.super.update();
 
-    self.player.bbox.generateGlobalPools(self.player.transform);
-    self.enemy.bbox.generateGlobalPools(self.enemy.transform);
-    if (self.player.bbox.collides(self.enemy.bbox)) {
-      vec3.set([0.98, 0.67, 0.1], self.player.bbox.shader.color);
-    } else {
-      vec3.set([0.34, 0.34, 0.34], self.player.bbox.shader.color);
+    // self.player.bbox.generateGlobalPools(self.player.transform);
+    // self.enemy.bbox.generateGlobalPools(self.enemy.transform);
+    // if (self.player.bbox.collides(self.enemy.bbox)) {
+    //   vec3.set([0.98, 0.67, 0.1], self.player.bbox.shader.color);
+    // } else {
+    //   vec3.set([0.34, 0.34, 0.34], self.player.bbox.shader.color);
+    // }
+    
+    for (var i = 0; i < self.entities.length; i++) {
+      if (self.entities[i].bbox) {
+        self.entities[i].bbox.generateGlobalPools(self.entities[i].transform);
+      }
+    }
+
+    for (var i = 0; i < self.entities.length - 1; i++) {
+      for (var j = i + 1; j < self.entities.length; j++) {
+        if (self.entities[i].bbox && self.entities[j].bbox && self.entities[i] != self.entities[j]) {
+          if (self.entities[i].bbox.collides(self.entities[j].bbox)) {
+            self.entities[i].onCollide(self.entities[j]);
+            self.entities[j].onCollide(self.entities[i]);
+          }
+        }
+      }
     }
 
     if (self.levelCamera.isActive()) {
@@ -247,11 +271,12 @@ function Level() {
  *******************************************************
  ******************************************************/
 
+var TYPE_PLAYER = 'p';
 function Player() {
   var self = object(new Entity());
 
   self.cameraOffsetTransform;
-
+  
   self.init = function(game, world) {
     self.super.init(game, world);
 
@@ -274,6 +299,8 @@ function Player() {
     shader.init("shader.vs", "shader.fs");
     shader.color = vec3.create([1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(1, 1, 1).compile(shader);
+
+    self.super.type = TYPE_PLAYER;
 
     return self;
   }
@@ -314,7 +341,7 @@ function Player() {
     if (self.game.input.keyPressed(32)) {  // Space
       var bullet = new Bullet(2, 0);
       bullet.copyTransform(self);
-      self.world.createEntities.push(bullet);
+      self.world.incomingEntities.push(bullet);
     }
 
     var idlation = 0.03*Math.sin(0.1*i);
@@ -335,11 +362,12 @@ function Player() {
   return self;
 }
 
+var TYPE_WEAPON = 'w';
 function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
   var self = object(new Entity());
 
   self.force = force;
-  self.lifespan = lifespan || 10;
+  self.lifespan = lifespan || 30;
 
   self.init = function(game, world) {
     self.super.init(game, world);
@@ -356,8 +384,14 @@ function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
     var m = new Cube().init(xs, ys, zs).compile(shader);
 
     self.super.mesh = m;
+    
+    self.super.bbox = new Cube().init(xs, ys, zs).compile(shader);
 
     self.translate([0, 0, -zs/2 + self.force]);  // first frame always on 0
+    
+    self.super.type = TYPE_WEAPON;
+
+    return self;
   }
 
   self.update = function() {
@@ -366,16 +400,33 @@ function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
     self.translate([0, 0, -force]);
     
     if (--self.lifespan < 0) {
-      self.world.removeEntities.push(self);
+      self.world.outgoingEntities.push(self);
+    }
+  }
+
+  self.onCollide = function(other) {
+    if (other.type === TYPE_ENEMY) {
+      other.die();
+      self.world.outgoingEntities.push(self);
     }
   }
 
   return self;
 }
 
+var TYPE_ENEMY = 'x';
+var EnemyState = {
+  IDLE: 0,
+  UP: 1,
+  DOWN: 2,
+  LEFT: 3,
+  RIGHT: 4
+}
 function Enemy() {
   var self = object(new Entity());
 
+  self.alive = true;
+  self.state;
 
   self.init = function(game, world) {
     self.super.init(game, world);
@@ -396,7 +447,128 @@ function Enemy() {
     shader.color = vec3.create([1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(xs, ys, zs).compile(shader);
 
+    self.alive = true;
+    self.super.type = TYPE_ENEMY; // enemy
+    
+    switchState(EnemyState.IDLE);
     return self;
+  }
+
+  self.update = function() {
+    self.super.update();
+
+    var rspeed = 0.1;
+    var tspeed = 0.5;
+    switch (self.state) {
+      case EnemyState.IDLE:
+        break;
+      case EnemyState.UP:
+        self.pitch(rspeed);
+        break;
+      case EnemyState.DOWN:
+        self.pitch(-rspeed);
+        break;
+      case EnemyState.LEFT:
+        self.poleyaw(-rspeed);
+        break;
+      case EnemyState.RIGHT:
+        self.poleyaw(rspeed);
+        break;
+    }
+    self.translate([0, 0, tspeed]);
+  }
+
+  self.die = function() {
+    self.alive = false;
+    self.world.outgoingEntities.push(self);
+  }
+  
+  self.onTimer = function(i) {
+    self.super.onTimer(i);
+    
+    // Change directions
+    if (self.state === EnemyState.IDLE) {
+      switch (Math.round(Math.random() * 3)) {
+        case 0:
+          switchState(EnemyState.UP);
+          break;
+        case 1:
+          switchState(EnemyState.DOWN);
+          break;
+        case 2:
+          switchState(EnemyState.LEFT);
+          break;
+        case 3:
+          switchState(EnemyState.RIGHT);
+          break;
+      }
+    } else {
+      // If already changing, then most likely go back to idle
+      switch (Math.round(Math.random() * 9)) {
+        case 0:
+          switchState(EnemyState.UP);
+          break;
+        case 1:
+          switchState(EnemyState.DOWN);
+          break;
+        case 2:
+          switchState(EnemyState.LEFT);
+          break;
+        case 3:
+          switchState(EnemyState.RIGHT);
+          break;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+          switchState(EnemyState.IDLE);
+          break;
+      }
+    }
+  }
+
+  var switchState = function(nextState) {
+    console.log("Switcheroo");
+    if (self.state !== nextState) {
+      self.state = nextState;
+      self.timers[0] = Math.random() * 20;
+    }
+  }
+
+  return self;
+}
+
+function EnemySpawner(enemyConstructor) {
+  var self = object();
+
+  self.game;
+  self.world;
+  self.enemyConstructor = enemyConstructor || Enemy;
+
+  self.enemy;
+
+  self.init = function(game, world) {
+    self.game = game;
+    self.world = world;
+    self.enemyConstructor = enemyConstructor;
+
+    return self;
+  }
+
+  self.update = function() {
+    if (!self.enemy || !self.enemy.alive) {
+      self.spawnEnemy();
+    }
+  }
+
+  self.render = function() {}
+
+  self.spawnEnemy = function() {
+    self.enemy = new self.enemyConstructor();
+    self.enemy.translate([-5, 0, -5]).poleyaw(1);
+    self.world.incomingEntities.push(self.enemy);
   }
 
   return self;
