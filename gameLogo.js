@@ -13,7 +13,7 @@ YAW_TIMER = 1;
 ROTATION_TIME = 10;
 ROTATION_TIME_OFFSET = 40;
 IDLE_TIME = 10;
-IDLE_TIME_OFFSET = 60;
+IDLE_TIME_OFFSET = 50;
 function LogoLevel() {
   var self = object(new GameState());
 
@@ -102,6 +102,11 @@ function LogoLevel() {
       }
     }    
 
+    if (self.game.input.keyCheck(66)) {
+      switchYawState(YAW_STATE.IDLE);
+      switchPitchState(PITCH_STATE.IDLE);
+    }
+
     if (self.game.input.keyCheck(MOUSE_KEYCODE)) {  // Mouse click
       var yaw = 0, pitch = 0;
       yaw += self.game.input.mouseXinc / 500;
@@ -110,57 +115,83 @@ function LogoLevel() {
 
       switchYawState(YAW_STATE.IDLE);
       switchPitchState(PITCH_STATE.IDLE);
+
+      restore = false;
+    } else if (self.game.input.keyReleased(MOUSE_KEYCODE)) {  // Mouse release
+      switchYawState(YAW_STATE.IDLE);
+      switchPitchState(PITCH_STATE.IDLE);
+
+      forceRestore();
     } else {
-      var restoreinc;
-      if (self.game.input.keyReleased(MOUSE_KEYCODE)) {  // Mouse release
-        switchYawState(YAW_STATE.IDLE);
-        switchPitchState(PITCH_STATE.IDLE);
-        restoreinc = 0.1;
+      if (restore) {
+        forceRestore();
       } else {
-        var rinc = 0.005;
+        var rinc = 0.0001;
+        var maxSpeed = 0.005;
         switch (self.pitchState) {
           case PITCH_STATE.IDLE:
+            if (self.camera.pitchAngle > maxSpeed) {
+              pitchSpeed = Math.max(-maxSpeed, pitchSpeed - rinc);
+            } else if (self.camera.pitchAngle < -maxSpeed) {
+              pitchSpeed = Math.min(maxSpeed, pitchSpeed + rinc);
+            } else if (self.camera.pitchAngle != 0) {
+              pitchSpeed = 0;
+              self.camera.orbitatepitch(-self.camera.pitchAngle);
+            }
             break;
           case PITCH_STATE.UP:
-            self.camera.orbitatepitch(rinc);
+            pitchSpeed = Math.min(maxSpeed, pitchSpeed + rinc);
             break;
           case PITCH_STATE.DOWN:
-            self.camera.orbitatepitch(-rinc);
+            pitchSpeed = Math.max(-maxSpeed, pitchSpeed - rinc);
             break;
         }
 
         switch (self.yawState) {
           case YAW_STATE.IDLE:
+            if (self.camera.yawAngle > maxSpeed) {
+              yawSpeed = Math.max(-maxSpeed, yawSpeed - rinc);
+            } else if (self.camera.yawAngle < -maxSpeed) {
+              yawSpeed = Math.min(maxSpeed, yawSpeed + rinc);
+            } else if (self.camera.yawAngle != 0) {
+              yawSpeed = 0;
+              self.camera.orbitatepoleyaw(yawSpeed);
+            }
             break;
           case YAW_STATE.LEFT:
-            self.camera.orbitatepoleyaw(-rinc);
+            yawSpeed = Math.max(-maxSpeed, yawSpeed - rinc);
             break;
           case YAW_STATE.RIGHT:
-            self.camera.orbitatepoleyaw(rinc);
+            yawSpeed = Math.min(maxSpeed, yawSpeed + rinc);
             break;
         }
-        restoreinc = rinc;
-      }
-
-      if (self.pitchState === PITCH_STATE.IDLE && self.yawState == YAW_STATE.IDLE) {
-        var yaw = 0, pitch = 0;
-        if (self.camera.yawAngle > restoreinc) {
-          yaw -= restoreinc;
-        } else if (self.camera.yawAngle < -restoreinc) {
-          yaw += restoreinc;
-        } else if (self.camera.yawAngle != 0) {
-          yaw -= self.camera.yawAngle;
-        }
-        if (self.camera.pitchAngle > restoreinc) {
-          pitch -= restoreinc;
-        } else if (self.camera.pitchAngle < -restoreinc) {
-          pitch += restoreinc;
-        } else if (self.camera.pitchAngle != 0) {
-          pitch -= self.camera.pitchAngle;
-        }
-        self.camera.orbitatepoleyaw(yaw).orbitatepitch(pitch);
+        self.camera.orbitatepoleyaw(yawSpeed).orbitatepitch(pitchSpeed);
       }
     }
+  }
+
+  var forceRestore = function() {
+    var restorepitchinc = 0.1;
+    var restoreyawinc = 0.1;
+    var yaw = 0, pitch = 0;
+    if (self.camera.yawAngle > restoreyawinc) {
+      yaw -= restoreyawinc;
+    } else if (self.camera.yawAngle < -restoreyawinc) {
+      yaw += restoreyawinc;
+    } else if (self.camera.yawAngle != 0) {
+      yaw -= self.camera.yawAngle;
+    }
+    if (self.camera.pitchAngle > restorepitchinc) {
+      pitch -= restorepitchinc;
+    } else if (self.camera.pitchAngle < -restorepitchinc) {
+      pitch += restorepitchinc;
+    } else if (self.camera.pitchAngle != 0) {
+      pitch -= self.camera.pitchAngle;
+    }
+
+    self.camera.orbitatepoleyaw(yaw).orbitatepitch(pitch);
+    
+    restore = self.camera.pitchAngle !== 0 || self.camera.yawAngle !== 0;
   }
 
   var onTimer = function(i) {
@@ -193,7 +224,7 @@ function LogoLevel() {
       }
     } else {
       // If already changing, then most likely go back to idle
-      switch (Math.round(Math.random() * 9)) {
+      switch (Math.round(Math.random() * 4)) {
         case 0:
           stateObject['switch'](stateObject.one);
           break;
@@ -202,6 +233,7 @@ function LogoLevel() {
           break;
         case 2:
         case 3:
+        case 4:
           stateObject['switch'](stateObject.idle);
           break;
       }
@@ -210,6 +242,7 @@ function LogoLevel() {
 
   var yawSpeed = 0;
   var pitchSpeed = 0;
+  var restore = false;
 
   var switchYawState = function(nextState) {
     self.yawState = nextState;
