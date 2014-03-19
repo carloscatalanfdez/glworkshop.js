@@ -689,7 +689,14 @@ function Entity() {
   }
 
   self.update = function() {
-    self.updateTimer(self.vself.onTimer);
+    for (var i = 0; i < self.timers.length; i++) {
+      if (!isNaN(self.timers[i]) || self.timers[i] >= 0) {
+        self.timers[i]--;
+        if (self.timers[i] < 0) {
+          self.vself.onTimer(i);
+        }
+      }
+    }
 
     return self;
   }
@@ -719,17 +726,6 @@ function Entity() {
   self.onCollide = function() {}
 
   self.onTimer = function(i) {}
-
-  self.updateTimer = function(callback) {
-    for (var i = 0; i < self.timers.length; i++) {
-      if (!isNaN(self.timers[i]) || self.timers[i] >= 0) {
-        self.timers[i]--;
-        if (self.timers[i] < 0) {
-          callback(i);
-        }
-      }
-    }
-  }
 
   self.translate = function(t) {
     mat4.translate(self.transform, t);
