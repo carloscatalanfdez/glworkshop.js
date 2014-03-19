@@ -68,7 +68,7 @@ function Level() {
     // Lights
     lights.l[0] = {
       pos: quat4.create([-4.0, 5.0, -4.0, 1.0]),
-      color: vec3.create([1.0, 1.0, 0.95])
+      color: quat4.create([1.0, 1.0, 0.95, 1.0])
     }
 
     /****************
@@ -86,7 +86,7 @@ function Level() {
     // Shaders
     var shader = new Shader().init("shaderTexture.vs", "shaderTexture.fs");
     shaderProgram = shader;
-    shaderProgram.color = vec3.create([1.0, 1.0, 0.8]);
+    shaderProgram.color = quat4.create([1.0, 1.0, 0.8, 1.0]);
     // Buffers
     tmpBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, tmpBuffer);
@@ -277,7 +277,7 @@ function Player() {
 
     var shader = new Shader();
     shader.init("shader.vs", "shader.fs");
-    shader.color = vec3.create([0.34, 0.32, 1.0]);
+    shader.color = quat4.create([0.34, 0.32, 1.0, 1.0]);
 
     // Create mesh (cube)
     var m = new Cube().init(1, 1, 1).compile(shader);
@@ -292,7 +292,7 @@ function Player() {
 
     shader = new Shader();
     shader.init("shader.vs", "shader.fs");
-    shader.color = vec3.create([1.0, 1.0, 1.0]);
+    shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(1, 1, 1).compile(shader);
 
     self.super.type = TYPE_PLAYER;
@@ -369,7 +369,7 @@ function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
 
     var shader = new Shader();
     shader.init("shader.vs", "shader.fs");
-    shader.color = vec3.create([0.64, 0.92, 0.2]);
+    shader.color = quat4.create([0.64, 0.92, 0.2, 1.0]);
 
     // Mesh dimensions (long cube)
     var xs = 0.1,
@@ -428,7 +428,7 @@ function Enemy() {
 
     var shader = new Shader();
     shader.init("shader.vs", "shader.fs");
-    shader.color = vec3.create([0.94, 0.22, 0.22]);
+    shader.color = quat4.create([0.94, 0.22, 0.22, 1.0]);
 
     var xs = 1.5,
         ys = 2.5,
@@ -439,7 +439,7 @@ function Enemy() {
 
     var shader = new Shader();   
     shader.init("shader.vs", "shader.fs");
-    shader.color = vec3.create([1.0, 1.0, 1.0]);
+    shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(xs, ys, zs).compile(shader);
 
     self.alive = true;

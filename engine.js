@@ -215,14 +215,14 @@ function Shader() {
     // Lights
     for (var i = 0; i < lights.l.length; i++) {
       gl.uniform4fv(self.uniforms["lightPos" + i], lights.l[i].mvPos);
-      gl.uniform3fv(self.uniforms["lightColor" + i], lights.l[i].color);
+      gl.uniform4fv(self.uniforms["lightColor" + i], lights.l[i].color);
     }
 
     // Color
     if (!self.color) {
-      self.color = vec3.create([0.598, 0.63, 0.6]);
+      self.color = quat4.create([0.598, 0.63, 0.6, 1.0]);
     }
-    gl.uniform3fv(self.uniforms.color, self.color);
+    gl.uniform4fv(self.uniforms.color, self.color);
 
     return self;
   }
@@ -470,6 +470,37 @@ function Camera() {
 
     return self;
   }
+
+  self.orbitatepitch = function(alpha) {
+    mat4.rotateX(self.mvMatrix, alpha);
+    self.pitchAngle += alpha;
+
+    return self;
+  }
+
+  self.orbitatepoleyaw = function(alpha) {
+    mat4.rotateX(self.mvMatrix, -self.pitchAngle);
+    mat4.rotateY(self.mvMatrix, alpha);
+    mat4.rotateX(self.mvMatrix, self.pitchAngle);
+
+    self.yawAngle += alpha;
+
+    return self;
+  }
+
+  self.orbitateyaw = function(alpha) {
+    mat4.rotateY(self.mvMatrix, alpha);
+    self.yawAngle += alpha;
+
+    return self;
+  }
+
+  self.orbitateroll = function(alpha) {
+    mat4.rotateZ(self.mvMatrix, alpha);
+    self.rollAngle += alpha;
+
+    return self;
+  }  
 
   self.lockOn = function(transform, offsetTransform) {
     self.target = transform;
