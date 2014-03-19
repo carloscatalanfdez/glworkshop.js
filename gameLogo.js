@@ -41,7 +41,7 @@ function LogoLevel() {
     vv.yT = vv.xR * gl.viewportHeight / gl.viewportWidth;
     vv.yB = - vv.yT;
     // Main camera setup
-    self.camera.init(vv).translate([0, 0, -3]).activate();
+    self.camera.init(vv).translate([0, 0, -4]).activate();
     self.camera.activate();
 
     /*****************
@@ -57,12 +57,12 @@ function LogoLevel() {
     /* Entities setup
     /***************/
     // Player
-    self.entities.push(new DotGenerator([0.4, -0.05, 0.5]).init(self.game, self));
-    self.entities.push(new DotGenerator([0.5, -0.05, 0.5]).init(self.game, self));
-    self.entities.push(new DotGenerator([0.6, -0.05, 0.5]).init(self.game, self));
-    
     self.logo.init(self.game, self);
     self.entities.push(self.logo);
+    self.entities.push(new DotGenerator([0.5, -0.075, 0.875]).init(self.game, self));
+    self.entities.push(new DotGenerator([0.6, -0.075, 0.875]).init(self.game, self));
+    self.entities.push(new DotGenerator([0.7, -0.075, 0.875]).init(self.game, self));
+    
 
     switchYawState(YAW_STATE.IDLE);
     switchPitchState(PITCH_STATE.IDLE);
@@ -375,9 +375,9 @@ function Logo() {
     shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
 
     // Mesh dimensions
-    var xs = 1,
-        ys = 1,
-        zs = 1;
+    var xs = 1.75,
+        ys = 1.75,
+        zs = 1.75;
     // Create mesh
     var m = new Cube().init(xs, ys, zs).compile(shader);
 
