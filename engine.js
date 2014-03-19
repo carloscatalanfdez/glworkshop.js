@@ -15,11 +15,15 @@ function object(o) {
   function F() { };
   if (o) {
     F.prototype = o;
-    n = new F();
+    var n = new F();
     n.super = o;
+    o.vself = n;
+    n.vself = n;
     return n;
   } else {
-    return new F();
+    var n = new F();
+    n.vself = n;
+    return n;
   }
 }
 
@@ -562,7 +566,7 @@ function Game() {
   }
     
   self.init = function(canvas) {
-    self.initSettings();
+    self.vself.initSettings();
     WebGl.game = self;
     WebGl.canvas = self;
     WebGl.init();
@@ -611,6 +615,8 @@ function GameState() {
   self.incomingEntities = [];
   self.outgoingEntities = [];
 
+  self.timers = [];
+
   self.init = function(game) {
     self.game = game;
     self.camera = new Camera();
@@ -619,6 +625,15 @@ function GameState() {
   }
 
   self.update = function() {
+    for (var i = 0; i < self.timers.length; i++) {
+      if (!isNaN(self.timers[i]) || self.timers[i] >= 0) {
+        self.timers[i]--;
+        if (self.timers[i] < 0) {
+          self.vself.onTimer(i);
+        }
+      }
+    }
+
     for (var i = 0; i < self.incomingEntities.length; i++) {
       self.incomingEntities[i].init(game, self);
       self.entities.push(self.incomingEntities[i]);
@@ -628,14 +643,7 @@ function GameState() {
     self.outgoingEntities = [];
 
     for (var i = 0; i < self.entities.length; i++) {
-      var entity = self.entities[i];
-      if (entity.timers) {
-        // HACK: doing this inside entity's update will always call super's onTimer
-        // because of how (wrongly) we do inheritance
-        // That's we send the callback ourselves (entity.setTimer)
-        entity.updateTimer(entity.onTimer);
-      }
-      entity.update();
+      self.entities[i].update();
     }
 
     return self;
@@ -645,6 +653,8 @@ function GameState() {
     self.camera.commit();
     return self;
   }
+
+  self.onTimer = function() {}
 
   return self;
 }
@@ -679,6 +689,8 @@ function Entity() {
   }
 
   self.update = function() {
+    self.updateTimer(self.vself.onTimer);
+
     return self;
   }
 

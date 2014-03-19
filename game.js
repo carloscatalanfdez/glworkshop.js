@@ -84,7 +84,7 @@ function Level() {
     /* Hardcoded scene
     /*****************/
     // Shaders
-    var shader = new Shader().init("shaderTexture.vs", "shaderTexture.fs");
+    var shader = new Shader().init("/assets/shaderTexture.vs", "/assets/shaderTexture.fs");
     shaderProgram = shader;
     shaderProgram.color = quat4.create([1.0, 1.0, 0.8, 1.0]);
     // Buffers
@@ -117,7 +117,7 @@ function Level() {
 
       shaderProgram.uniforms.texture0 = gl.getUniformLocation(shaderProgram.program, "uTexSampler0");
     }
-    floorTexture.image.src = "floortile.png";
+    floorTexture.image.src = "/assets/floortile.png";
       
     toggleCamera();
 
@@ -276,7 +276,7 @@ function Player() {
     self.super.init(game, world);
 
     var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([0.34, 0.32, 1.0, 1.0]);
 
     // Create mesh (cube)
@@ -291,7 +291,7 @@ function Player() {
     self.cameraOffsetTransform = mat;
 
     shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(1, 1, 1).compile(shader);
 
@@ -368,7 +368,7 @@ function Bullet(/* float */ force, /* int - time in frames */ lifespan) {
     self.super.init(game, world);
 
     var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([0.64, 0.92, 0.2, 1.0]);
 
     // Mesh dimensions (long cube)
@@ -427,7 +427,7 @@ function Enemy() {
     self.super.init(game, world);
 
     var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([0.94, 0.22, 0.22, 1.0]);
 
     var xs = 1.5,
@@ -438,7 +438,7 @@ function Enemy() {
     self.super.mesh = m;
 
     var shader = new Shader();   
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
     self.super.bbox = new Cube().init(xs, ys, zs).compile(shader);
 

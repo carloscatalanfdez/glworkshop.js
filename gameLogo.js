@@ -26,8 +26,6 @@ function LogoLevel() {
 
   self.lightPos;
 
-  self.timers = [];
-
   self.init = function(game) {
     self.super.init(game);
 
@@ -92,15 +90,6 @@ function LogoLevel() {
 
   self.update = function() {
     self.super.update();
-
-    for (var i = 0; i < self.timers.length; i++) {
-      if (!isNaN(self.timers[i]) || self.timers[i] >= 0) {
-        self.timers[i]--;
-        if (self.timers[i] < 0) {
-          onTimer(i);
-        }
-      }
-    }    
 
     if (self.game.input.keyCheck(66)) {
       switchYawState(YAW_STATE.IDLE);
@@ -194,7 +183,7 @@ function LogoLevel() {
     restore = self.camera.pitchAngle !== 0 || self.camera.yawAngle !== 0;
   }
 
-  var onTimer = function(i) {
+  self.onTimer = function(i) {
     // Change directions
     var stateObject;
     if (i == YAW_TIMER) {
@@ -284,7 +273,7 @@ function Dot(lifespan) {
     self.super.init(game, world);
 
     var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([0.1, 0.1, 0.1, 1.0]);
 
     // Mesh dimensions
@@ -382,7 +371,7 @@ function Logo() {
     self.super.init(game, world);
 
     var shader = new Shader();
-    shader.init("shader.vs", "shader.fs");
+    shader.init("/assets/shader.vs", "/assets/shader.fs");
     shader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
 
     // Mesh dimensions
@@ -400,7 +389,7 @@ function Logo() {
     /* Hardcoded logo
     /*****************/
     // Shaders
-    logoShader = new Shader().init("shaderTexture.vs", "shaderTexture.fs");
+    logoShader = new Shader().init("/assets/shaderTexture.vs", "/assets/shaderTexture.fs");
     logoShader.color = quat4.create([1.0, 1.0, 1.0, 1.0]);
     // Buffers
     logoBuffer = gl.createBuffer();
@@ -435,7 +424,7 @@ function Logo() {
 
       logoShader.uniforms.texture0 = gl.getUniformLocation(logoShader.program, "uTexSampler0");
     }
-    logoTexture.image.src = "soon_logo.png";
+    logoTexture.image.src = "/assets/soon_logo.png";
 
     return self;
   }
@@ -485,8 +474,8 @@ function LogoGame() {
   var self = object(new Game());
   
   self.initSettings = function() {
-    self.width = 400;
-    self.height = 100;
+    self.super.width = 320;
+    self.super.height = 240;
 
     return self;
   }
