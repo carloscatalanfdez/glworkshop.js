@@ -178,22 +178,14 @@ function Level() {
       if (self.game.input.keyCheck(68)) {  // d
         x -= tinc;
       }
+      self.camera.translate([x, 0, y]);
 
+      if (self.game.input.keyCheck(MOUSE_KEYCODE)) {  // Mouse click
       var yaw = 0, pitch = 0;
-      if (self.game.input.keyCheck(37)) {  // left
-        yaw -= rinc;
+        yaw += self.game.input.mouseXinc / 50;
+        pitch -= self.game.input.mouseYinc / 50;
+        self.camera.poleyaw(yaw).pitch(-pitch);
       }
-      if (self.game.input.keyCheck(38)) {  // up
-        pitch += rinc;
-      }
-      if (self.game.input.keyCheck(39)) {  // right
-        yaw += rinc;
-      }
-      if (self.game.input.keyCheck(40)) {  // down
-        pitch -= rinc;
-      }
-
-      self.camera.translate([x, 0, y]).poleyaw(yaw).pitch(-pitch);
     }
 
     if (self.game.input.keyPressed(80)) {  // p
@@ -533,7 +525,6 @@ function Enemy() {
   }
 
   var switchState = function(nextState) {
-    console.log("Switcheroo");
     if (self.state !== nextState) {
       self.state = nextState;
       self.timers[0] = Math.random() * 20;

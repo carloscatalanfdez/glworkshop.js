@@ -82,6 +82,15 @@ var WebGl = {
     document.onkeyup = function(event) {
       self.input.onKeyReleased(event.keyCode);
     };
+    document.onmousedown = function(event) {
+      self.input.onMouseDown(event);
+    }
+    document.onmouseup = function(event) {
+      self.input.onMouseUp(event);
+    }
+    document.onmousemove = function(event) {
+      self.input.onMouseMove(event);
+    }
   },
 
   run: function() {
@@ -250,21 +259,41 @@ function Shader() {
   return self;
 }
 
+var MOUSE_KEYCODE = 0;
 function Input() {
   var self = object();
 
   self.keyStates = [];
   self.prevKeyStates = [];
   self.currKeyStates = [];
+  
+  self.mouseX = 0;
+  self.mouseY = 0;
+  self.mouseXinc = 0;
+  self.mouseYinc = 0;
 
   self.onKeyPressed = function(keyCode) {
     self.keyStates[keyCode] = true;
     dirtyKeys[nDirtyKeys++] = keyCode;
   };
+
   self.onKeyReleased = function(keyCode) {
     self.keyStates[keyCode] = false;
     dirtyKeys[nDirtyKeys++] = keyCode;
   };
+
+  self.onMouseDown = function() {
+    self.onKeyPressed(MOUSE_KEYCODE);
+  }
+
+  self.onMouseUp = function() {
+    self.onKeyReleased(MOUSE_KEYCODE);
+  }
+
+  self.onMouseMove = function(event) {
+    dirtyMouseX = event.clientX;
+    dirtyMouseY = event.clientY;
+  }
 
   self.update = function() {
     var nextNumDirtyKeys = 0;
@@ -279,6 +308,11 @@ function Input() {
       }
     }
     nDirtyKeys = nextNumDirtyKeys;
+
+    self.mouseXinc = dirtyMouseX - self.mouseX;
+    self.mouseYinc = dirtyMouseY - self.mouseY;
+    self.mouseX = dirtyMouseX;
+    self.mouseY = dirtyMouseY;
 
     return self;
   }
@@ -298,6 +332,8 @@ function Input() {
   // Private data
   var dirtyKeys = [];
   var nDirtyKeys = 0;
+  var dirtyMouseX = self.mouseX;
+  var dirtyMouseY = self.mouseY;
 
   return self;
 }
