@@ -474,8 +474,8 @@ function LogoGame() {
   var self = object(new Game());
   
   self.initSettings = function() {
-    self.super.width = 320;
-    self.super.height = 240;
+    self.super.width = 640;
+    self.super.height = 480;
 
     return self;
   }
